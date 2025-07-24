@@ -1,0 +1,26 @@
+{
+  "ip" : "Невідомо",
+  "location" : { },
+  "timezoneOffset" : -180,
+  "localTime" : "Wed Jul 23 2025 12:30:25 GMT+0300 (за східноєвропейським літнім часом)",
+  "cookiesEnabled" : true,
+  "localStorageAvailable" : true,
+  "sessionStorageAvailable" : true,
+  "platform" : "Win32",
+  "javaEnabled" : false,
+  "screen" : {
+    "width" : 1536,
+    "height" : 864,
+    "availWidth" : 1536,
+    "availHeight" : 864,
+    "colorDepth" : 24
+  },
+  "userAgent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 OPR/120.0.0.0",
+  "language" : "uk",
+  "languages" : [ "uk", "en-US", "en", "ru" ],
+  "online" : true,
+  "battery" : {
+    "level" : 1,
+    "charging" : true
+  }
+}
