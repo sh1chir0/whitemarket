@@ -68,20 +68,61 @@ body {
 
 .table-targets {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    /*grid-template-columns: repeat(7, 1fr);*/
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr;
     gap: 15px;
 }
 
 .table-eight {
     display: grid;
-    grid-template-columns: repeat(8, 1fr);
+    /*grid-template-columns: repeat(8, 1fr);*/
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
     gap: 15px;
 }
 
-.table-history {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 15px;
+.cell.bought input {
+    color: red;
+    font-weight: bold;
+}
+
+.cell.sold input {
+    color: green;
+    font-weight: bold;
+}
+
+.red {
+    color: #CF5959;
+    font-family: 'Segoe UI Emoji', sans-serif;
+}
+
+.lock-icon {
+    width: 19px;
+    height: 19px;
+    vertical-align: top;
+    margin-top: 1px;
+}
+
+
+
+#searchInput {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 10px;
+    background: #1d1f20;
+    color: white;
+    font-size: 14px;
+    outline: none;
+    width: 220px;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 0 2px transparent;
+}
+
+#searchInput::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+#searchInput:focus {
+    box-shadow: 0 0 0 2px #8DD294;
 }
 
 .delete-btn {
@@ -101,17 +142,49 @@ body {
     color: #fff;
 }
 
+/*.header {*/
+/*    background: linear-gradient(90deg, #74CBBA, #8DD294);*/
+/*    -webkit-background-clip: text;*/
+/*    -webkit-text-fill-color: transparent;*/
+/*    background-clip: text;*/
+/*    text-fill-color: transparent;*/
+/*    border-radius: 5px;*/
+/*    padding: 10px;*/
+/*    text-align: center;*/
+/*    font-weight: bold;*/
+/*    background-color: #1D1F20;*/
+/*}*/
+
 .header {
-    background: linear-gradient(90deg, #74CBBA, #8DD294);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    text-fill-color: transparent;
-    border-radius: 5px;
+    position: relative;
     padding: 10px;
     text-align: center;
     font-weight: bold;
+    border-radius: 6px;
     background-color: #1D1F20;
+    color: transparent;
+
+    /* для градієнту */
+    background-image: linear-gradient(90deg, #74CBBA, #8DD294);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.back-header{
+    border-radius: 6px;
+    background-color: #1D1F20;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
+.table-history {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
 }
 
 .cell input {

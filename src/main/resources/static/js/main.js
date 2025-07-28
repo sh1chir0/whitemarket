@@ -1,9 +1,9 @@
-import { inventories } from './inventory.js'
-import { offers } from './offers.js'
-import { targets } from './targets.js'
-import { history } from './history.js'
-import { createTargets } from './createTargets.js?v=1.0.2'
-import { settings } from './settings.js?v=1.0.1'
+import { inventories } from './inventory.js?v=1.0.2'
+import { offers } from './offers.js?v=1.0.2'
+import { targets } from './targets.js?v=1.0.2'
+import { history } from './history.js?v=1.0.2'
+import { createTargets } from './createTargets.js?v=1.0.3'
+import { settings } from './settings.js?v=1.0.2'
 
 const inventoryBtn = document.getElementById('inventory-btn'),
     mainBlock = document.getElementById('main-block'),
@@ -209,6 +209,16 @@ offersBtn.addEventListener('click', () => {
                         </svg>
                     </div>
                 `
+
+                const searchInput = document.createElement('input');
+                searchInput.id="searchInput"
+                searchInput.className = 'main-button'
+                searchInput.type = 'text'
+                searchInput.placeholder = 'Пошук за назвою...'
+                searchInput.style.marginBottom = '10px'
+                searchInput.style.width = '200px'
+
+                bottomBtns.appendChild(searchInput)
             })
 
         mainBlock.innerHTML = ''
@@ -406,6 +416,16 @@ targetsBtn.addEventListener('click', () => {
                     </svg>
                 </div>
             `
+
+                    const searchInput = document.createElement('input');
+                    searchInput.id="searchInput"
+                    searchInput.className = 'main-button'
+                    searchInput.type = 'text'
+                    searchInput.placeholder = 'Пошук за назвою...'
+                    searchInput.style.marginBottom = '10px'
+                    searchInput.style.width = '200px'
+
+                    bottomBtns.appendChild(searchInput)
             })
 
             mainBlock.innerHTML = ''

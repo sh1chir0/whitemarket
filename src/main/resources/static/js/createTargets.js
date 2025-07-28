@@ -6,12 +6,12 @@ export function createTargets() {
     const table = document.createElement('div')
     table.className = 'table-offers'
     table.innerHTML = `
-        <div class="header">НАЗВА ПРЕДМЕТА</div>
-        <div class="header">МІНІМАЛЬНИЙ ПОРІГ</div>
-        <div class="header">МАКСИМАЛЬНИЙ ПОРІГ</div>
-        <div class="header">МАКС. ТАРГЕТ</div>
-        <div class="header">DM МІН. ЛОК</div>
-        <div class="header">DM МІН. РОЗЛОК</div>`
+        <div class="back-header"><div class="header">НАЗВА</div></div>
+        <div class="back-header"><div class="header">МІН.ПОРІГ</div></div>
+        <div class="back-header"><div class="header">МАКС.ПОРІГ</div></div>
+        <div class="back-header"><div class="header">МАКС. ТАРГЕТ</div></div>
+        <div class="back-header"><div class="header">DM MIN <img src="/img/lock.png" alt="lock" class="lock-icon"></div></div>
+        <div class="back-header"><div class="header">DM MIN <img src="/img/green lock.png" alt="lock" class="lock-icon"></div></div>`
 
     mainBlock.appendChild(table)
 

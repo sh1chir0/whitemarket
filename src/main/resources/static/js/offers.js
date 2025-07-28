@@ -11,17 +11,17 @@ export function offers() {
             const table = document.createElement('div')
             table.className = 'table-targets'
             table.innerHTML = `
-            <div class="header">НАЗВА ПРЕДМЕТА</div>
-            <div class="header">МІНІМАЛЬНИЙ ПОРІГ</div>
-            <div class="header">МАКСИМАЛЬНИЙ ПОРІГ</div>
-            <div class="header">МОЯ ЦІНА</div>
-            <div class="header">DM МІН. ЛОК</div>
-            <div class="header">DM МІН. РОЗЛОК</div>
-            <div class="header">ВИДАЛИТИ</div>
+            <div class="back-header"><div class="header">НАЗВА</div></div>
+            <div class="back-header"><div class="header">МІН.ПОРІГ</div></div>
+            <div class="back-header"><div class="header">МАКС.ПОРІГ</div></div>
+            <div class="back-header"><div class="header">МОЯ ЦІНА</div></div>
+            <div class="back-header"><div class="header">DM MIN <img src="/img/lock.png" alt="lock" class="lock-icon"></div></div>
+            <div class="back-header"><div class="header">DM MIN <img src="/img/green lock.png" alt="lock" class="lock-icon"></div></div>
+            <div class="back-header"><div class="header">ВИДАЛИТИ</div></div>
         `
             data.forEach(item => {
                 table.innerHTML += `
-            <div class="cell"><input type="text" value="${item.name}" readonly data-asset="${item.assetId}" data-type="name"></div>
+            <div class="cell"><input type="text" style="text-align: left;" value="${item.name}" readonly data-asset="${item.assetId}" data-type="name"></div>
             <div class="cell"><input type="number" value="${item.minPrice}" data-asset="${item.assetId}" data-type="minPrice"></div>
             <div class="cell"><input type="number" value="${item.maxPrice}" data-asset="${item.assetId}" data-type="maxPrice"></div>
             <div class="cell"><input type="text" value="${item.price}" readonly data-asset="${item.assetId}" data-type="myPrice"></div>
@@ -32,6 +32,27 @@ export function offers() {
             })
 
             mainBlock.appendChild(table)
+
+            const searchInput = document.getElementById('searchInput')
+
+            searchInput.addEventListener('input', () => {
+                const filter = searchInput.value.toLowerCase()
+                const nameInputs = table.querySelectorAll('input[data-type="name"]')
+
+                nameInputs.forEach(input => {
+                    const nameValue = input.value.toLowerCase()
+
+                    const nameCell = input.closest('.cell')
+                    const rowStartIndex = Array.from(table.children).indexOf(nameCell)
+                    const cellsInRow = Array.from(table.children).slice(rowStartIndex, rowStartIndex + 7)
+
+                    if (nameValue.includes(filter)) {
+                        cellsInRow.forEach(cell => cell.style.display = '')
+                    } else {
+                        cellsInRow.forEach(cell => cell.style.display = 'none')
+                    }
+                })
+            })
 
             document.querySelectorAll('.delete-btn').forEach(button => {
                 button.addEventListener('click', (e) => {
@@ -172,3 +193,4 @@ export function offers() {
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+

@@ -10,11 +10,11 @@ export function inventories() {
             const table = document.createElement('div')
             table.className = 'table-inv'
             table.innerHTML = `
-        <div class="header">НАЗВА ПРЕДМЕТА</div>
-        <div class="header">МІНІМАЛЬНИЙ ПОРІГ</div>
-        <div class="header">МАКСИМАЛЬНИЙ ПОРІГ</div>
-        <div class="header">DM МІН. ЛОК</div>
-        <div class="header">DM МІН. РОЗЛОК</div>
+        <div class="back-header"><div class="header">НАЗВА</div></div>
+        <div class="back-header"><div class="header">МІН.ПОРІГ</div></div>
+        <div class="back-header"><div class="header">МАКС.ПОРІГ</div></div>
+        <div class="back-header"><div class="header">DM MIN <img src="/img/lock.png" alt="lock" class="lock-icon"></div></div>
+        <div class="back-header"><div class="header">DM MIN <img src="/img/green lock.png" alt="lock" class="lock-icon"></div></div>
     `
             data.forEach(item => {
                 table.innerHTML += `
@@ -28,7 +28,7 @@ export function inventories() {
 
             mainBlock.appendChild(table)
 
-            document.getElementById('sold').addEventListener('click', () => {
+            document.getElementById('sold').addEventListener('click', async () => {
                 const inputs = document.querySelectorAll('input[data-asset]')
                 const results = {}
 
@@ -38,7 +38,7 @@ export function inventories() {
                     const value = input.value
 
                     if (!results[assetId]) {
-                        results[assetId] = { assetId }
+                        results[assetId] = {assetId}
                     }
 
                     if (type === 'name') {
@@ -51,10 +51,10 @@ export function inventories() {
                             results[assetId].price = value
                         }
 
-                        if(type === 'locked')
+                        if (type === 'locked')
                             results[assetId].minWithLock = value
 
-                        if(type === 'unlocked')
+                        if (type === 'unlocked')
                             results[assetId].minWithoutLock = value
                     }
                 })
@@ -64,66 +64,43 @@ export function inventories() {
 
                 console.log(resultArray)
 
-                if(resultArray.maxPrice < resultArray.minWithLock){
-                    console.log("asdad")
-                    if (confirm("Макс.поріг менший за мін.лок. Ви впевнені, що хочете продовжити?")) {
-                        fetch('/api/offers/create', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(resultArray),
-                            signal: signal
-                        })
-                            .then(async response => {
-                                if (!response.ok) {
-                                    throw new Error('Помилка при відправці даних')
-                                }
+                for (const item of resultArray) {
+                    const max = parseFloat(item.maxPrice)
+                    const minLock = parseFloat(item.minWithLock || 0)
+                    const minNoLock = parseFloat(item.minWithoutLock || 0)
 
-                                mainBlock.innerHTML = ``
-                                await sleep(2000);
-                                inventories()
-
-                                return response.text()
-                            })
-                            .then(data => {
-                                console.log(data)
-                            })
-                            .catch(error => {
-                                console.error('Помилка:', error)
-                            })
-                    }
-                }else if(resultArray.maxPrice < resultArray.minWithoutLock){
-                    if (confirm("Макс.поріг менший за мін.розлок. Ви впевнені, що хочете продовжити?")) {
-                        fetch('/api/offers/create', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(resultArray),
-                            signal: signal
-                        })
-                            .then(async response => {
-                                if (!response.ok) {
-                                    throw new Error('Помилка при відправці даних')
-                                }
-
-                                mainBlock.innerHTML = ``
-                                await sleep(2000);
-                                inventories()
-
-                                return response.text()
-                            })
-                            .then(data => {
-                                console.log(data)
-                            })
-                            .catch(error => {
-                                console.error('Помилка:', error)
-                            })
+                    if (!isNaN(max) && max < minLock) {
+                        const proceed = confirm(`Для "${item.name || item.assetId}": Макс.поріг < мін.лок. Продовжити?`)
+                        if (!proceed) return;
+                    } else if (!isNaN(max) && max < minNoLock) {
+                        const proceed = confirm(`Для "${item.name || item.assetId}": Макс.поріг < мін.розлок. Продовжити?`)
+                        if (!proceed) return
                     }
                 }
 
+                try {
+                    const response = await fetch('/api/offers/create', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(resultArray),
+                        signal: signal
+                    })
 
+                    if (!response.ok) {
+                        throw new Error('Помилка при відправці даних')
+                    }
+
+                    mainBlock.innerHTML = ``
+                    await sleep(2000)
+                    inventories()
+
+                    const data = await response.text()
+                    console.log(data)
+                } catch (error) {
+                    console.error('Помилка:', error)
+                }
             })
         })
 }
