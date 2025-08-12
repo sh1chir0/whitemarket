@@ -54,29 +54,32 @@ body {
 .main-block{
     padding: 20px;
 }
+
 .table-inv {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    /*grid-template-columns: repeat(6, 1fr);*/
+    grid-template-columns: 1fr 3fr 2fr 2fr 2fr 2fr;
     gap: 15px;
 }
 
 .table-offers {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    /*grid-template-columns: repeat(6, 1fr);*/
+    grid-template-columns: 1fr 3fr 1fr 1fr 1fr 1fr 1fr;
     gap: 15px;
 }
 
 .table-targets {
     display: grid;
     /*grid-template-columns: repeat(7, 1fr);*/
-    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 3fr 1fr 1fr 1fr 1fr 1fr 1fr;
     gap: 15px;
 }
 
 .table-eight {
     display: grid;
     /*grid-template-columns: repeat(8, 1fr);*/
-    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 3fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
     gap: 15px;
 }
 
@@ -102,7 +105,10 @@ body {
     margin-top: 1px;
 }
 
-
+.skin-img {
+    height: 70px;
+    vertical-align: top;
+}
 
 #searchInput {
     padding: 10px 15px;
@@ -205,6 +211,7 @@ body {
 .cell {
     display: flex;
     align-items: center;
+    justify-content: center;
 }
 
 .add-button {
@@ -260,4 +267,52 @@ input[type=number]::-webkit-outer-spin-button {
     background: none;
     padding: 0;
     align-self: center;
+}
+
+
+
+.cell.tooltip {
+    position: relative; /* щоб позиціювати попап */
+    display: flex; /* або те, що в тебе було для .cell */
+    align-items: center;
+    justify-content: center;
+}
+
+.popup-table {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: #1c1c1c;
+    color: white;
+    padding: 8px;
+    border-radius: 6px;
+    z-index: 100;
+    white-space: nowrap;
+    font-size: 14px;
+    transition: opacity 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.cell.tooltip:hover .popup-table {
+    visibility: visible;
+    opacity: 1;
+}
+
+.popup-table table {
+    border-collapse: collapse;
+}
+
+.popup-table th,
+.popup-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid #444;
+}
+.popup-table input {
+    width: 70px;
+    background: transparent;
+    color: white;
+    border: 1px solid #666;
+    padding: 2px;
 }

@@ -6,6 +6,7 @@ export function createTargets() {
     const table = document.createElement('div')
     table.className = 'table-offers'
     table.innerHTML = `
+        <div></div>
         <div class="back-header"><div class="header">НАЗВА</div></div>
         <div class="back-header"><div class="header">МІН.ПОРІГ</div></div>
         <div class="back-header"><div class="header">МАКС.ПОРІГ</div></div>
@@ -17,6 +18,7 @@ export function createTargets() {
 
     document.getElementById('plus-line').addEventListener('click', () => {
         table.insertAdjacentHTML('beforeend', `
+            <div></div> 
             <div class="cell"><input type="text" value=""></div>
             <div class="cell"><input type="number" value="" readonly></div>
             <div class="cell"><input type="number" value="" readonly></div>
@@ -45,6 +47,7 @@ export function createTargets() {
 
                 table.className = 'table-offers'
                 table.innerHTML = `
+                    <div></div>
                     <div class="header">НАЗВА ПРЕДМЕТА</div>
                     <div class="header">МІНІМАЛЬНИЙ ПОРІГ</div>
                     <div class="header">МАКСИМАЛЬНИЙ ПОРІГ</div>
@@ -54,12 +57,38 @@ export function createTargets() {
 
                 mainBlock.appendChild(table)
 
+                // data.forEach(item => {
+                //     table.insertAdjacentHTML('beforeend', `
+                //         <div class="cell"><img src="${item.imageLink}" alt="lock" class="skin-img" data-asset="${item.id}" data-type="image"></div>
+                //         <div class="cell"><input type="text" value="${item.name}" readonly data-asset="${item.id}" data-type="name"></div>
+                //         <div class="cell"><input type="number" value="" data-asset="${item.id}" data-type="minPrice"></div>
+                //         <div class="cell"><input type="number" value="" data-asset="${item.id}" data-type="maxPrice"></div>
+                //         <div class="cell" id="target-${item.id}"><input type="text" value="${item.maxTarget}" readonly data-asset="${item.id}" data-type="maxTarget"></div>
+                //         <div class="cell"><input type="text" value="${item.minWithLock}" readonly data-asset="${item.id}" data-type="locked"></div>
+                //         <div class="cell"><input type="text" value="${item.minWithoutLock}" readonly data-asset="${item.id}" data-type="unlocked"></div>
+                //     `)
+                // })
+
                 data.forEach(item => {
                     table.insertAdjacentHTML('beforeend', `
+                        <div class="cell"><img src="${item.imageLink}" alt="lock" class="skin-img" data-asset="${item.id}" data-type="image"></div>
                         <div class="cell"><input type="text" value="${item.name}" readonly data-asset="${item.id}" data-type="name"></div>
                         <div class="cell"><input type="number" value="" data-asset="${item.id}" data-type="minPrice"></div>
                         <div class="cell"><input type="number" value="" data-asset="${item.id}" data-type="maxPrice"></div>
-                        <div class="cell"><input type="text" value="${item.maxTarget}" readonly data-asset="${item.id}" data-type="maxTarget"></div>
+                        <div class="cell tooltip" id="target-${item.id}">
+                            <input type="text" value="${item.maxTarget}" readonly data-asset="${item.id}" data-type="maxTarget">
+                            <div class="popup-table">
+                                <table>
+                                    <tr><th>Ціна</th><th>Кількість</th></tr>
+                                    ${(item.targets || []).map(t => `
+                                        <tr>
+                                            <td>${t.price}</td>
+                                            <td>${t.quantity}</td>
+                                        </tr>
+                                    `).join('')}
+                                </table>
+                            </div>
+                        </div>                        
                         <div class="cell"><input type="text" value="${item.minWithLock}" readonly data-asset="${item.id}" data-type="locked"></div>
                         <div class="cell"><input type="text" value="${item.minWithoutLock}" readonly data-asset="${item.id}" data-type="unlocked"></div>
                     `)
@@ -100,6 +129,15 @@ export function createTargets() {
                                 break;
                         }
                     })
+
+                    const images = document.querySelectorAll('img[data-asset]')
+                    images.forEach(img => {
+                        const assetId = img.dataset.asset
+                        if (results[assetId]) {
+                            results[assetId].imageLink = img.src
+                        }
+                    })
+
                     const resultArray = Object.values(results)
 
                     console.log(resultArray)
@@ -130,6 +168,8 @@ export function createTargets() {
                             console.error('Помилка:', error)
                         })
                 })
+
+
             })
             .catch(error => {
                 console.error('Помилка:', error)

@@ -4,6 +4,10 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import ua.sh1chiro.Bot.models.Target;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by Sh1chiro on 01.05.2025.
@@ -27,7 +31,8 @@ public class SkinPricesDTO {
     private double maxTarget;
     private String ownerWith;
     private String ownerWithout;
-
+    private String imageLink;
+    private List<TargetPriceDTO> targets = new ArrayList<>();
     @Override
     public String toString() {
         return "SkinPricesDTO{" +

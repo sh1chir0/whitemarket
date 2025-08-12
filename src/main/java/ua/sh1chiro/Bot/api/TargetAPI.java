@@ -38,6 +38,7 @@ public class TargetAPI {
             skinPricesDTO.setName(name);
             skinPricesDTO.setId(i);
             skinPricesDTO.setMaxTarget(DMarket.getMaxTargetWithoutAttributes(name));
+            skinPricesDTO.setTargets(DMarket.getTargetsForSkin(name));
 
             skinPricesDTOS.add(skinPricesDTO);
             i++;

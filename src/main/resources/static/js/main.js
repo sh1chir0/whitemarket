@@ -1,9 +1,9 @@
-import { inventories } from './inventory.js?v=1.0.2'
-import { offers } from './offers.js?v=1.0.2'
-import { targets } from './targets.js?v=1.0.2'
-import { history } from './history.js?v=1.0.2'
-import { createTargets } from './createTargets.js?v=1.0.3'
-import { settings } from './settings.js?v=1.0.2'
+import { inventories } from './inventory.js?v=1.0.3'
+import { offers } from './offers.js?v=1.0.3'
+import { targets } from './targets.js?v=1.0.3'
+import { history } from './history.js?v=1.0.3'
+import { createTargets } from './createTargets.js?v=1.0.5'
+import { settings } from './settings.js?v=1.0.3'
 
 const inventoryBtn = document.getElementById('inventory-btn'),
     mainBlock = document.getElementById('main-block'),

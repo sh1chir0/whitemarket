@@ -35,6 +35,8 @@ public class Offer {
     private double minWithoutLock;
     private double minWithLock;
     private boolean tradable;
+    @Column(columnDefinition = "TEXT")
+    private String imageLink;
     private LocalDateTime dateOfCreated;
     private LocalDateTime lastUpdate;
     private LocalDateTime tryUpdate;

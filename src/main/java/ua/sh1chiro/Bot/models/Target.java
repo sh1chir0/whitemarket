@@ -35,6 +35,8 @@ public class Target {
     private double maxTarget;
     private double minWithoutLock;
     private double minWithLock;
+    @Column(columnDefinition = "TEXT")
+    private String imageLink;
     private LocalDateTime dateOfCreated;
     private LocalDateTime lastUpdateTime;
 

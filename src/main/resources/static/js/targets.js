@@ -12,6 +12,7 @@ export function targets() {
 
             table.className = 'table-eight'
             table.innerHTML = `
+                    <div></div>
                     <div class="back-header"><div class="header">НАЗВА</div></div>
                     <div class="back-header"><div class="header">МІН.ПОРІГ</div></div>
                     <div class="back-header"><div class="header">МАКС.ПОРІГ</div></div>
@@ -25,6 +26,7 @@ export function targets() {
 
             data.forEach(item => {
                 table.insertAdjacentHTML('beforeend', `
+                        <div class="cell"><img src="${item.imageLink}" alt="lock" class="skin-img" data-asset="${item.assetId}" data-type="image"></div>
                         <div class="cell"><input style="text-align: left;" type="text" value="${item.name}" readonly data-asset="${item.id}" data-type="name"></div>
                         <div class="cell"><input type="number" value="${item.minPrice}" data-asset="${item.id}" data-type="minPrice"></div>
                         <div class="cell"><input type="number" value="${item.maxPrice}" data-asset="${item.id}" data-type="maxPrice"></div>
@@ -48,7 +50,7 @@ export function targets() {
                     const nameValue = input.value.toLowerCase()
                     const nameCell = input.closest('.cell')
                     const rowStartIndex = Array.from(table.children).indexOf(nameCell)
-                    const cellsInRow = Array.from(table.children).slice(rowStartIndex, rowStartIndex + 8)
+                    const cellsInRow = Array.from(table.children).slice(rowStartIndex - 1, rowStartIndex + 8)
 
                     if (nameValue.includes(filter)) {
                         cellsInRow.forEach(cell => cell.style.display = '')

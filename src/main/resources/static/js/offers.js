@@ -11,16 +11,18 @@ export function offers() {
             const table = document.createElement('div')
             table.className = 'table-targets'
             table.innerHTML = `
-            <div class="back-header"><div class="header">НАЗВА</div></div>
-            <div class="back-header"><div class="header">МІН.ПОРІГ</div></div>
-            <div class="back-header"><div class="header">МАКС.ПОРІГ</div></div>
-            <div class="back-header"><div class="header">МОЯ ЦІНА</div></div>
-            <div class="back-header"><div class="header">DM MIN <img src="/img/lock.png" alt="lock" class="lock-icon"></div></div>
-            <div class="back-header"><div class="header">DM MIN <img src="/img/green lock.png" alt="lock" class="lock-icon"></div></div>
-            <div class="back-header"><div class="header">ВИДАЛИТИ</div></div>
-        `
+                <div></div>
+                <div class="back-header"><div class="header">НАЗВА</div></div>
+                <div class="back-header"><div class="header">МІН.ПОРІГ</div></div>
+                <div class="back-header"><div class="header">МАКС.ПОРІГ</div></div>
+                <div class="back-header"><div class="header">МОЯ ЦІНА</div></div>
+                <div class="back-header"><div class="header">DM MIN <img src="/img/lock.png" alt="lock" class="lock-icon"></div></div>
+                <div class="back-header"><div class="header">DM MIN <img src="/img/green lock.png" alt="lock" class="lock-icon"></div></div>
+                <div class="back-header"><div class="header">ВИДАЛИТИ</div></div>
+            `
             data.forEach(item => {
                 table.innerHTML += `
+            <div class="cell"><img src="${item.imageLink}" class="skin-img"></div>
             <div class="cell"><input type="text" style="text-align: left;" value="${item.name}" readonly data-asset="${item.assetId}" data-type="name"></div>
             <div class="cell"><input type="number" value="${item.minPrice}" data-asset="${item.assetId}" data-type="minPrice"></div>
             <div class="cell"><input type="number" value="${item.maxPrice}" data-asset="${item.assetId}" data-type="maxPrice"></div>
@@ -44,7 +46,7 @@ export function offers() {
 
                     const nameCell = input.closest('.cell')
                     const rowStartIndex = Array.from(table.children).indexOf(nameCell)
-                    const cellsInRow = Array.from(table.children).slice(rowStartIndex, rowStartIndex + 7)
+                    const cellsInRow = Array.from(table.children).slice(rowStartIndex - 1, rowStartIndex + 7)
 
                     if (nameValue.includes(filter)) {
                         cellsInRow.forEach(cell => cell.style.display = '')

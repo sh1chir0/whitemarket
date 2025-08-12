@@ -152,6 +152,40 @@ public class DMarket {
         }
     }
 
+    public static void updateOffersId(){
+        List<Offer> offers = offerService.getAll();
+        List<Offer> offersFromDMarket = getOffersFromDMarket(BotConfig.config, 0);
+        for (Offer offerFromDMarket : offersFromDMarket) {
+            for (Offer offer : offers) {
+                if(offerFromDMarket.getAssetId().equals(offer.getAssetId())){
+                    if(!offerFromDMarket.getOfferId().equals(offer.getOfferId())){
+                        offer.setOfferId(offerFromDMarket.getOfferId());
+                        offerService.save(offer);
+
+                        System.out.println("Оффер ід апдейтнувся");
+                    }
+                }
+            }
+        }
+    }
+
+    public static void updateTargetsId(){
+        List<Target> targets = targetService.getAllTargets();
+        List<Target> targetsFromDMarket = getTargetsFromDMarket(BotConfig.config, 0);
+        for (Target targetFromDMarket : targetsFromDMarket) {
+            for (Target target : targets) {
+                if(targetFromDMarket.getName().equals(target.getName())){
+                    if(!targetFromDMarket.getTargetId().equals(target.getTargetId())){
+                        target.setTargetId(targetFromDMarket.getTargetId());
+                        targetService.save(target);
+
+                        System.out.println("Таргет ід апдейтнувся");
+                    }
+                }
+            }
+        }
+    }
+
     public static List<ClosedTargetDTO> getClosedUserTargets() throws IOException, InterruptedException {
         List<ClosedTargetDTO> closedUserTargets = new ArrayList<>();
         String endpoint = "/marketplace-api/v1/user-targets/closed";
@@ -192,9 +226,14 @@ public class DMarket {
                 BotConfig.config.getPublicAPIKey(),
                 BotConfig.config.getSecretAPIKey());
 
+        System.out.println();
+        System.out.println(response);
+        System.out.println();
+        System.out.println(response.body());
+        System.out.println();
+
         Gson gson = new Gson();
         JsonObject jsonObject = gson.fromJson(response.body(), JsonObject.class);
-
         try {
             JsonArray items = jsonObject.getAsJsonArray("Trades");
 
@@ -269,19 +308,20 @@ public class DMarket {
         return offers;
     }
 
-    public static boolean updateOfferPrice(List<Offer> offers) throws IOException, InterruptedException {
+    public static boolean updateOfferPrice(List<Offer> offers){
         String endpoint = "/marketplace-api/v1/user-offers/edit";
-        String endpointForSubscribe = "/marketplace-api/v1/user-offers/edit" + ConverterToJSON.inventoryListToJson(offers);
-
-        HttpResponse<String> response = postRequest(endpoint, endpointForSubscribe,
-                BotConfig.config.getPublicAPIKey(),
-                BotConfig.config.getSecretAPIKey(),
-                ConverterToJSON.inventoryListToJson(offers));
-
-        System.out.println(response.body());
-        Gson gson = new Gson();
-        JsonObject jsonObject = gson.fromJson(response.body(), JsonObject.class);
         try {
+            String endpointForSubscribe = "/marketplace-api/v1/user-offers/edit" + ConverterToJSON.inventoryListToJson(offers);
+
+            HttpResponse<String> response = postRequest(endpoint, endpointForSubscribe,
+                    BotConfig.config.getPublicAPIKey(),
+                    BotConfig.config.getSecretAPIKey(),
+                    ConverterToJSON.inventoryListToJson(offers));
+
+            System.out.println(response.body());
+            Gson gson = new Gson();
+            JsonObject jsonObject = gson.fromJson(response.body(), JsonObject.class);
+
             if (jsonObject.has("Result")) {
                 JsonArray updatedOffers = jsonObject.getAsJsonArray("Result");
 
@@ -409,6 +449,43 @@ public class DMarket {
         }
     }
 
+    public static List<TargetPriceDTO> getTargetsForSkin(String name){
+        List<TargetPriceDTO> targetPrices = new ArrayList<>();
+        try {
+            String endpoint = "/marketplace-api/v1/market-depth?gameId=a8db&title=" + URLEncoder.encode(name, "UTF-8");
+
+            HttpResponse<String> response = getRequest(endpoint,
+                    BotConfig.config.getPublicAPIKey(),
+                    BotConfig.config.getSecretAPIKey());
+
+            Gson gson = new Gson();
+            JsonObject jsonObject = gson.fromJson(response.body(), JsonObject.class);
+            JsonArray orders = jsonObject.getAsJsonArray("orders");
+            System.out.println(orders);
+
+            for (JsonElement element : orders) {
+                JsonObject order = element.getAsJsonObject();
+                JsonArray attributes = order.getAsJsonArray("attributes");
+
+                if (attributes.isEmpty()) {
+                    double price = order.get("price").getAsDouble() / 100;
+                    int amount = order.get("amount").getAsInt();
+
+                    TargetPriceDTO targetPriceDTO = new TargetPriceDTO();
+                    targetPriceDTO.setPrice(price);
+                    targetPriceDTO.setQuantity(amount);
+                    targetPrices.add(targetPriceDTO);
+
+                    if(targetPrices.size() == 10)
+                        break;
+                }
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return targetPrices;
+    }
+
     public static double getMaxTargetWithoutAttributes(String name) {
         try {
             String endpoint = "/marketplace-api/v1/market-depth?gameId=a8db&title=" + URLEncoder.encode(name, "UTF-8");
@@ -528,6 +605,7 @@ public class DMarket {
             double minLocked = Double.MAX_VALUE;
             String ownerWith = "";
             String ownerWithout = "";
+            String image = "";
 
             String me = getMe();
 
@@ -537,6 +615,10 @@ public class DMarket {
                 String owner = item.get("owner").getAsString();
                 if(me.equals(owner)) {
                     continue;
+                }
+
+                if(item.has("image")){
+                    image = item.get("image").getAsString();
                 }
 
                 JsonObject extra = item.getAsJsonObject("extra");
@@ -568,6 +650,7 @@ public class DMarket {
             skinPricesDTO.setMinWithoutLock(minUnlocked == Double.MAX_VALUE ? 0 : minUnlocked/100);
             skinPricesDTO.setOwnerWith(ownerWith);
             skinPricesDTO.setOwnerWithout(ownerWithout);
+            skinPricesDTO.setImageLink(image);
 
             return skinPricesDTO;
         } catch (Exception ex) {
@@ -905,62 +988,69 @@ public class DMarket {
         }
     }
 
-    public static String getTargetsFromDMarket(Config user, String money) throws IOException, InterruptedException {
+    public static List<Target> getTargetsFromDMarket(Config user, int money){
         String endpointUserTargets = "/marketplace-api/v1/user-targets?limit=100&BasicFilters.Status=TargetStatusActive&BasicFilters.PriceFrom=" + money;
-
-        HttpResponse<String> response = getRequest(endpointUserTargets, user.getPublicAPIKey(), user.getSecretAPIKey());
-        Gson gson = new Gson();
-        JsonObject jsonObject = gson.fromJson(response.body(), JsonObject.class);
-        System.out.println(jsonObject);
-        String result = "Не знайдено таргетів.";
+        List<Target> targets = new ArrayList<>();
         try{
-            if(jsonObject.has("Items")){
-                JsonArray jsonArray = jsonObject.get("Items").getAsJsonArray();
+            HttpResponse<String> response = getRequest(endpointUserTargets, user.getPublicAPIKey(), user.getSecretAPIKey());
+            Gson gson = new Gson();
+            JsonObject jsonObject = gson.fromJson(response.body(), JsonObject.class);
+            System.out.println(jsonObject);
+            String result = "Не знайдено таргетів.";
 
-                if(!jsonArray.isEmpty()) {
-                    for (JsonElement jsonElement : jsonArray) {
-                        JsonObject target = jsonElement.getAsJsonObject();
-                        if (target.has("Title")) {
-                            String title = target.get("Title").getAsString();
-                            result = result.concat("\n" + title);
-                            if (target.has("TargetID")) {
-                                String targetId = target.get("TargetID").getAsString();
-                                result = result.concat("\nTargetID: " + targetId);
-                            }
-                            if (target.has("Amount")) {
-                                String amount = target.get("Amount").getAsString();
-                                result = result.concat("\nAmount: " + amount);
-                            }
-                            if (target.has("Price")) {
-                                JsonObject priceObject = target.get("Price").getAsJsonObject();
-                                String price = priceObject.get("Amount").getAsString();
-                                result = result.concat("\nPrice: $" + price);
-                            }
-                            if (target.has("Status")) {
-                                String status = target.get("Status").getAsString();
-                                result = result.concat("\nStatus: " + status + "\n__________________");
+                if(jsonObject.has("Items")){
+                    JsonArray jsonArray = jsonObject.get("Items").getAsJsonArray();
+
+                    if(!jsonArray.isEmpty()) {
+                        for (JsonElement jsonElement : jsonArray) {
+                            JsonObject target = jsonElement.getAsJsonObject();
+                            if (target.has("Title")) {
+                                String title = target.get("Title").getAsString();
+                                result = result.concat("\n" + title);
+
+                                Target targetForSave = new Target();
+
+                                if (target.has("TargetID")) {
+                                    String targetId = target.get("TargetID").getAsString();
+                                    result = result.concat("\nTargetID: " + targetId);
+
+                                    targetForSave.setTargetId(targetId);
+                                    targetForSave.setName(title);
+                                    targets.add(targetForSave);
+                                }
+                                if (target.has("Amount")) {
+                                    String amount = target.get("Amount").getAsString();
+                                    result = result.concat("\nAmount: " + amount);
+                                }
+                                if (target.has("Price")) {
+                                    JsonObject priceObject = target.get("Price").getAsJsonObject();
+                                    String price = priceObject.get("Amount").getAsString();
+                                    result = result.concat("\nPrice: $" + price);
+
+                                }
+                                if (target.has("Status")) {
+                                    String status = target.get("Status").getAsString();
+                                    result = result.concat("\nStatus: " + status + "\n__________________");
+                                }
                             }
                         }
                     }
                 }
-            }
         }catch (Exception ex){
             ex.printStackTrace();
-            return "Виникла помилка " + ex.getMessage();
         }
-        return result;
+        return targets;
     }
-    public static String getOffersFromDMarket(Config user, int money) throws IOException, InterruptedException {
+    public static List<Offer> getOffersFromDMarket(Config user, int money){
         String endpointUserOffers = "/marketplace-api/v1/user-offers?limit=100&BasicFilters.PriceFrom=" + money;
-
+        List<Offer> offers = new ArrayList<>();
+        try{
         HttpResponse<String> response = getRequest(endpointUserOffers, user.getPublicAPIKey(), user.getSecretAPIKey());
-
         Gson gson = new Gson();
         JsonObject jsonObject = gson.fromJson(response.body(), JsonObject.class);
         System.out.println(response.body());
         String result = "Не знайдено офферів.";
 
-        try{
             if(jsonObject.has("Items")){
                 JsonArray jsonArray = jsonObject.getAsJsonArray("Items");
 
@@ -990,6 +1080,11 @@ public class DMarket {
                                             result = result.concat("\nPrice: $" + amount + "\n________________");
 
                                             count++;
+
+                                            Offer offerToSave = new Offer();
+                                            offerToSave.setOfferId(offerId);
+                                            offerToSave.setAssetId(assetId);
+                                            offers.add(offerToSave);
                                         }
                                     }
                                 }
@@ -1001,7 +1096,7 @@ public class DMarket {
         }catch (Exception ex){
             ex.printStackTrace();
         }
-        return result;
+        return offers;
     }
     public static boolean createTargets(List<Target> targets) throws IOException, InterruptedException {
         List<SkinTargetDTO> data = ConverterToJSON.targetsToSkinTargetDTO(targets);

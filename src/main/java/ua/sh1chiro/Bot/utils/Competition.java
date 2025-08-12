@@ -35,6 +35,12 @@ public class Competition {
         int delay = BotConfig.config.getOfferDelay() * 60 * 1000;
         while(BotConfig.config.isCompetitionOffers()) {
             DMarket.updateOffers();
+            try {
+                Thread.sleep(2000);
+                DMarket.updateOffersId();
+            }catch (Exception ex){
+                ex.printStackTrace();
+            }
 
             List<Offer> offers = offerService.getAll();
 
@@ -65,16 +71,16 @@ public class Competition {
 
                 offer.setTryUpdate(LocalDateTime.now());
                 offerService.save(offer);
+
+                try {
+                    Thread.sleep(1000);
+                }catch (Exception ex){
+                    ex.printStackTrace();
+                }
             }
 
-            try {
-                DMarket.updateOfferPrice(offers);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
 
+            DMarket.updateOfferPrice(offers);
             try {
                 Thread.sleep(delay);
             }catch (Exception ex){
@@ -87,6 +93,13 @@ public class Competition {
         int delay = BotConfig.config.getTargetDelay()  * 60 * 1000;
         while (BotConfig.config.isCompetitionTargets()) {
             DMarket.updateTargetHistory();
+
+            try {
+                Thread.sleep(2000);
+                DMarket.updateTargetsId();
+            }catch (Exception ex){
+                ex.printStackTrace();
+            }
 
             List<Target> targets = targetService.getAllTargets();
 
@@ -116,23 +129,13 @@ public class Competition {
                 }catch (Exception ex){
                     ex.printStackTrace();
                 }
-
-
-                // 1.0
-//                try{
-//                    double maxTarget = DMarket.getMaxTargetWithoutAttributes(target.getName());
-//                    target.setMaxTarget(maxTarget);
-//
-//                    double maxTargetWithoutAttributes = DMarket.getMaxTargetWithoutAttributesWithFrames(target.getName(), target.getMinPrice(), target.getMaxPrice());
-//                    if(maxTargetWithoutAttributes != 0)
-//                        target.setPrice(maxTargetWithoutAttributes + 0.01);
-//                    else
-//                        target.setPrice(target.getMinPrice());
-//                }catch (Exception ex){
-//                    ex.printStackTrace();
-//                }
-
                 targetService.save(target);
+
+                try {
+                    Thread.sleep(1000);
+                }catch (Exception ex){
+                    ex.printStackTrace();
+                }
             }
 
             DMarket.updateTargets(targets);

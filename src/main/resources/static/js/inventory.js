@@ -10,15 +10,17 @@ export function inventories() {
             const table = document.createElement('div')
             table.className = 'table-inv'
             table.innerHTML = `
-        <div class="back-header"><div class="header">НАЗВА</div></div>
-        <div class="back-header"><div class="header">МІН.ПОРІГ</div></div>
-        <div class="back-header"><div class="header">МАКС.ПОРІГ</div></div>
-        <div class="back-header"><div class="header">DM MIN <img src="/img/lock.png" alt="lock" class="lock-icon"></div></div>
-        <div class="back-header"><div class="header">DM MIN <img src="/img/green lock.png" alt="lock" class="lock-icon"></div></div>
-    `
+                <div></div>
+                <div class="back-header"><div class="header">НАЗВА</div></div>
+                <div class="back-header"><div class="header">МІН.ПОРІГ</div></div>
+                <div class="back-header"><div class="header">МАКС.ПОРІГ</div></div>
+                <div class="back-header"><div class="header">DM MIN <img src="/img/lock.png" alt="lock" class="lock-icon"></div></div>
+                <div class="back-header"><div class="header">DM MIN <img src="/img/green lock.png" alt="lock" class="lock-icon"></div></div>
+            `
             data.forEach(item => {
                 table.innerHTML += `
-            <div class="cell"><input type="text" value="${item.name}" readonly data-asset="${item.assetId}" data-type="name" data-tradable="${item.tradable}"></div>
+            <div class="cell"><img src="${item.imageLink}" alt="lock" class="skin-img" data-asset="${item.assetId}" data-type="image"></div>
+            <div class="cell"><input type="text" style="text-align: left;" value="${item.name}" readonly data-asset="${item.assetId}" data-type="name" data-tradable="${item.tradable}"></div>
             <div class="cell"><input type="number" value="" data-asset="${item.assetId}" data-type="minPrice"></div>
             <div class="cell"><input type="number" value="" data-asset="${item.assetId}" data-type="maxPrice"></div>
             <div class="cell"><input type="text" value="${item.skinPricesDTO.minWithLock}" readonly data-asset="${item.assetId}" data-type="locked"></div>
@@ -56,6 +58,14 @@ export function inventories() {
 
                         if (type === 'unlocked')
                             results[assetId].minWithoutLock = value
+                    }
+                })
+
+                const images = document.querySelectorAll('img[data-asset]')
+                images.forEach(img => {
+                    const assetId = img.dataset.asset
+                    if (results[assetId]) {
+                        results[assetId].imageLink = img.src
                     }
                 })
 
