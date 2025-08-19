@@ -9,6 +9,8 @@ import ua.sh1chiro.Bot.dto.SkinPricesDTO;
 import ua.sh1chiro.Bot.utils.Competition;
 import ua.sh1chiro.Bot.utils.DMarket;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.List;
 
@@ -27,9 +29,15 @@ import java.util.List;
 public class test {
     @GetMapping("/test")
     public void test(){
-        System.out.println(DMarket.getTargetsFromDMarket(BotConfig.config, 1).toString());
-//        DMarket.updateTargetsId();
+        String path = "MasSocketPrice_extract.csv";
 
-        Competition.targetCompetition();
+        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                System.out.println(line);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }

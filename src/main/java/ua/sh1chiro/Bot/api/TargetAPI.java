@@ -1,17 +1,28 @@
 package ua.sh1chiro.Bot.api;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import ua.sh1chiro.Bot.dto.SkinPricesDTO;
+import ua.sh1chiro.Bot.dto.TargetImportItem;
 import ua.sh1chiro.Bot.models.Offer;
 import ua.sh1chiro.Bot.models.Target;
 import ua.sh1chiro.Bot.services.TargetService;
 import ua.sh1chiro.Bot.utils.DMarket;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.time.OffsetDateTime;
+import java.util.*;
 
 /**
  * Created by Sh1chiro on 14.04.2025.
@@ -28,6 +39,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TargetAPI {
     private final TargetService targetService;
+
+    private final Path uploadRoot = Paths.get("uploads");
 
     @PostMapping("/update-info")
     public List<SkinPricesDTO> updateInfo(@RequestBody List<String> names){
@@ -95,4 +108,63 @@ public class TargetAPI {
 
         return ResponseEntity.ok("ok");
     }
+
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadJsonFile(
+            @RequestPart("file") MultipartFile file) {
+        try {
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest().body("Файл не передано або порожній");
+            }
+
+            try (InputStream is = file.getInputStream()) {
+                List<TargetImportItem> items = objectMapper.readValue(
+                        is, new TypeReference<List<TargetImportItem>>() {}
+                );
+
+                if (items == null || items.isEmpty()) {
+                    return ResponseEntity.badRequest().body("JSON порожній або не масив");
+                }
+
+                List<Target> targets = new ArrayList<>(items.size());
+                for (TargetImportItem it : items) {
+                    targets.add(mapToTarget(it));
+                }
+
+                DMarket.createTargets(targets);
+
+                return ResponseEntity.ok("Успішно оброблено: " + targets.size());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body("Помилка парсингу JSON: " + e.getMessage());
+        }
+    }
+
+    private Target mapToTarget(TargetImportItem it) {
+        Target t = new Target();
+        t.setName(nvl(it.getHashName(), ""));
+        t.setMinPrice(parseDouble(it.getMinPrice()));
+        t.setMaxPrice(parseDouble(it.getMaxPrice()));
+        t.setPrice(t.getMinPrice());
+        t.setMaxTarget(it.getCount() != null ? it.getCount() : 0);
+
+        SkinPricesDTO skinPricesDTO = DMarket.getOffersBySkin(t.getName());
+        t.setMinWithoutLock(skinPricesDTO.getMinWithoutLock());
+        t.setMinWithLock(skinPricesDTO.getMinWithLock());
+        t.setImageLink(skinPricesDTO.getImageLink());
+        t.setMaxTarget(DMarket.getMaxTargetWithoutAttributes(t.getName()));
+
+        return t;
+    }
+
+    private static double parseDouble(String s) {
+        if (s == null || s.isBlank()) return 0d;
+        s = s.replace(',', '.').trim();
+        try { return Double.parseDouble(s); } catch (NumberFormatException e) { return 0d; }
+    }
+    private static String nvl(String s, String def) { return (s == null) ? def : s; }
 }

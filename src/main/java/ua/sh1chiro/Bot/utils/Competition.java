@@ -25,6 +25,8 @@ import java.util.List;
 @Component
 public class Competition {
     private static OfferService offerService;
+    public static boolean offerCompetitionWorking;
+    public static boolean targetCompetitionWorking;
     private static TargetService targetService;
     public Competition(OfferService offerService, TargetService targetService) {
         Competition.offerService = offerService;
@@ -32,119 +34,155 @@ public class Competition {
     }
 
     public static void offerCompetition(){
+        offerCompetitionWorking = true;
+
         int delay = BotConfig.config.getOfferDelay() * 60 * 1000;
         while(BotConfig.config.isCompetitionOffers()) {
-            DMarket.updateOffers();
             try {
-                Thread.sleep(2000);
-                DMarket.updateOffersId();
-            }catch (Exception ex){
-                ex.printStackTrace();
-            }
-
-            List<Offer> offers = offerService.getAll();
-
-            offers = DMarket.updateOfferTradable(offers);
-
-            for (Offer offer : offers) {
-                SkinPricesDTO skinPricesDTO = DMarket.getOffersBySkin(offer.getName());
-                offer.setMinWithoutLock(skinPricesDTO.getMinWithoutLock());
-                offer.setMinWithLock(skinPricesDTO.getMinWithLock());
-
-                SkinPricesDTO skinPricesWithFrames = DMarket.getOffersBySkinWithFrames(offer.getName(), offer.getMinPrice(), offer.getMaxPrice());
-                if(offer.isTradable()){
-                    if(skinPricesWithFrames.getMinWithoutLock() != 0)
-                        offer.setPrice(skinPricesWithFrames.getMinWithoutLock() - 0.01);
-                    else
-                        offer.setPrice(offer.getMaxPrice());
-                }else {
-                    if(skinPricesWithFrames.getMinWithLock() != 0)
-                        offer.setPrice(skinPricesWithFrames.getMinWithLock() - 0.01);
-                    else
-                        offer.setPrice(offer.getMaxPrice());
+                DMarket.updateOffers();
+                try {
+                    Thread.sleep(2000);
+                    DMarket.updateOffersId();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
                 }
+
+                List<Offer> offers = offerService.getAll();
+
+                offers = DMarket.updateOfferTradable(offers);
+
+                for (Offer offer : offers) {
+                    SkinPricesDTO skinPricesDTO = DMarket.getOffersBySkin(offer.getName());
+                    offer.setMinWithoutLock(skinPricesDTO.getMinWithoutLock());
+                    offer.setMinWithLock(skinPricesDTO.getMinWithLock());
+
+                    SkinPricesDTO skinPricesWithFrames = DMarket.getOffersBySkinWithFrames(offer.getName(), offer.getMinPrice(), offer.getMaxPrice());
+                    if (offer.isTradable()) {
+                        if (skinPricesWithFrames.getMinWithoutLock() != 0)
+                            offer.setPrice(skinPricesWithFrames.getMinWithoutLock() - 0.01);
+                        else
+                            offer.setPrice(offer.getMaxPrice());
+                    }
+                    else {
+                        if (skinPricesWithFrames.getMinWithLock() != 0)
+                            offer.setPrice(skinPricesWithFrames.getMinWithLock() - 0.01);
+                        else
+                            offer.setPrice(offer.getMaxPrice());
+                    }
 
 //                if (offer.isTradable() && (offer.getMinWithoutLock() - 0.01 >= offer.getMinPrice()) && (offer.getMinWithoutLock() - 0.01 <= offer.getMaxPrice()))
 //                    offer.setPrice(offer.getMinWithoutLock() - 0.01);
 //                else if ((offer.getMinWithLock() - 0.01 >= offer.getMinPrice()) && (offer.getMinWithLock() - 0.01 <= offer.getMaxPrice()))
 //                    offer.setPrice(offer.getMinWithLock() - 0.01);
 
-                offer.setTryUpdate(LocalDateTime.now());
-                offerService.save(offer);
+                    offer.setTryUpdate(LocalDateTime.now());
+                    offerService.save(offer);
 
-                try {
-                    Thread.sleep(1000);
-                }catch (Exception ex){
-                    ex.printStackTrace();
+                    try {
+                        Thread.sleep(1000);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
                 }
-            }
 
 
-            DMarket.updateOfferPrice(offers);
-            try {
-                Thread.sleep(delay);
+                DMarket.updateOfferPrice(offers);
+                try {
+                    Thread.sleep(delay);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                } finally {
+                    try {
+                        if (!BotConfig.config.isCompetitionOffers())
+                            break;
+
+                        Thread.sleep(delay);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
             }catch (Exception ex){
                 ex.printStackTrace();
             }
         }
+        offerCompetitionWorking = false;
+
     }
 
     public static void targetCompetition(){
+        targetCompetitionWorking = true;
+
         int delay = BotConfig.config.getTargetDelay()  * 60 * 1000;
         while (BotConfig.config.isCompetitionTargets()) {
-            DMarket.updateTargetHistory();
-
             try {
-                Thread.sleep(2000);
-                DMarket.updateTargetsId();
-            }catch (Exception ex){
-                ex.printStackTrace();
-            }
-
-            List<Target> targets = targetService.getAllTargets();
-
-            for (Target target : targets) {
-                LocalDateTime time = LocalDateTime.now();
-                if (target.getLastUpdateTime().isAfter(time.minusMinutes(15))) {
-                    continue;
-                }
-
-                SkinPricesDTO skinPricesDTO = DMarket.getOffersBySkin(target.getName());
-                target.setMinWithLock(skinPricesDTO.getMinWithLock());
-                target.setMinWithoutLock(skinPricesDTO.getMinWithoutLock());
-
-                try{
-                    double maxTarget = DMarket.getMaxTargetWithoutAttributes(target.getName());
-                    target.setMaxTarget(maxTarget);
-
-                    List<Double> topPrices = DMarket.getTop2MaxTargetsWithoutAttributesWithFrames(target.getName(), target.getMinPrice(), target.getMaxPrice());
-                    if(!topPrices.isEmpty())
-                        if(target.getPrice() == topPrices.getFirst()){
-                            if(topPrices.size() == 2)
-                                target.setPrice(topPrices.getLast() + 0.01);
-                        }else
-                            target.setPrice(topPrices.getFirst() + 0.01);
-                    else
-                        target.setPrice(target.getMinPrice());
-                }catch (Exception ex){
-                    ex.printStackTrace();
-                }
-                targetService.save(target);
+                DMarket.updateTargetHistory();
 
                 try {
-                    Thread.sleep(1000);
-                }catch (Exception ex){
+                    Thread.sleep(2000);
+                    DMarket.updateTargetsId();
+                } catch (Exception ex) {
                     ex.printStackTrace();
                 }
-            }
 
-            DMarket.updateTargets(targets);
+                List<Target> targets = targetService.getAllTargets();
 
-            try{
-                Thread.sleep(delay);
+                for (Target target : targets) {
+                    LocalDateTime time = LocalDateTime.now();
+                    if (target.getLastUpdateTime().isAfter(time.minusMinutes(15))) {
+                        continue;
+                    }
+
+                    SkinPricesDTO skinPricesDTO = DMarket.getOffersBySkin(target.getName());
+                    target.setMinWithLock(skinPricesDTO.getMinWithLock());
+                    target.setMinWithoutLock(skinPricesDTO.getMinWithoutLock());
+
+                    try {
+                        double maxTarget = DMarket.getMaxTargetWithoutAttributes(target.getName());
+                        target.setMaxTarget(maxTarget);
+
+                        List<Double> topPrices = DMarket.getTop2MaxTargetsWithoutAttributesWithFrames(target.getName(), target.getMinPrice(), target.getMaxPrice());
+                        if (!topPrices.isEmpty())
+                            if (target.getPrice() == topPrices.getFirst()) {
+                                if (topPrices.size() == 2)
+                                    target.setPrice(topPrices.getLast() + 0.01);
+                            }
+                            else
+                                target.setPrice(topPrices.getFirst() + 0.01);
+                        else
+                            target.setPrice(target.getMinPrice());
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                    targetService.save(target);
+
+                    try {
+                        Thread.sleep(1000);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+
+                DMarket.updateTargets(targets);
+
+                try {
+                    Thread.sleep(delay);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                } finally {
+                    try {
+                        if (!BotConfig.config.isCompetitionTargets())
+                            break;
+
+                        Thread.sleep(delay);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
             }catch (Exception ex){
                 ex.printStackTrace();
             }
         }
+
+        targetCompetitionWorking = false;
     }
 }

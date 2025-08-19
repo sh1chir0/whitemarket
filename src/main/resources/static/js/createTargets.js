@@ -175,6 +175,108 @@ export function createTargets() {
                 console.error('Помилка:', error)
             })
     })
+
+
+    const fileInput = document.getElementById('fileInput')
+    const fileLabel = document.querySelector('label.file-upload')
+
+    function ensureStatusNode() {
+        let node = fileLabel.nextElementSibling
+        if (!node || !node.classList.contains('upload-status')) {
+            node = document.createElement('div')
+            node.className = 'upload-status'
+            node.innerHTML = `
+      <span class="status-icon" aria-hidden="true">⏳</span>
+      <div class="progress" aria-label="Прогрес завантаження">
+        <div class="progress__bar"></div>
+      </div>
+      <div class="progress__percent" aria-live="polite">0%</div>
+    `
+            fileLabel.after(node)
+        }
+        return node
+    }
+
+    function setStatusProgress(node, percent) {
+        const bar = node.querySelector('.progress__bar')
+        const pct = node.querySelector('.progress__percent')
+        const icon = node.querySelector('.status-icon')
+        icon.textContent = '⏳'
+        icon.className = 'status-icon'
+        bar.style.width = `${Math.max(0, Math.min(100, percent))}%`
+        pct.textContent = `${Math.max(0, Math.min(100, percent))}%`
+    }
+
+    function setStatusDone(node, msg = "Успішно оброблено"){
+        const bar = node.querySelector('.progress__bar')
+        const pct = node.querySelector('.progress__percent')
+        const icon = node.querySelector('.status-icon')
+        icon.textContent = '✅'
+        icon.className = 'status-icon status-icon--ok'
+        bar.style.width = '100%'
+        pct.textContent = msg
+        pct.style.color = '#8DD294'
+    }
+
+    function setStatusError(node, msg = "Помилка обробки") {
+        const icon = node.querySelector('.status-icon')
+        const pct = node.querySelector('.progress__percent')
+        icon.textContent = '❌'
+        icon.className = 'status-icon status-icon--err'
+        pct.textContent = msg
+        pct.style.color = '#ff6b6b'
+    }
+
+    function uploadFiles(files) {
+        const fd = new FormData()
+        for (const f of files) fd.append('file', f)
+
+        const node = ensureStatusNode()
+        setStatusProgress(node, 0)
+
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', '/api/targets/upload')
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100)
+                setStatusProgress(node, percent)
+            }
+        }
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                setStatusDone(node)
+            } else {
+                setStatusError(node)
+            }
+        }
+
+        xhr.onerror = () => setStatusError(node, "Помилка мережі")
+
+        xhr.send(fd)
+    }
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files?.length) uploadFiles(Array.from(fileInput.files))
+    });
+
+    ['dragenter','dragover'].forEach(evt =>
+        fileLabel.addEventListener(evt, e => {
+            e.preventDefault(); e.stopPropagation()
+            fileLabel.style.filter = 'brightness(0.95)'
+        })
+    );
+    ['dragleave','drop'].forEach(evt =>
+        fileLabel.addEventListener(evt, e => {
+            e.preventDefault(); e.stopPropagation()
+            fileLabel.style.filter = ''
+        })
+    );
+    fileLabel.addEventListener('drop', e => {
+        const dt = e.dataTransfer
+        if (dt?.files?.length) uploadFiles(Array.from(dt.files))
+    });
 }
 
 function collectTargets() {

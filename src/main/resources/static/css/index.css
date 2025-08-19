@@ -316,3 +316,64 @@ input[type=number]::-webkit-outer-spin-button {
     border: 1px solid #666;
     padding: 2px;
 }
+
+.btn-row{
+    display:flex; align-items:center; gap:15px;
+}
+.btn-row .file-upload{ margin-left:auto; position:relative; cursor:pointer; display:inline-flex; align-items:center; }
+
+/* Ховаємо нативний інпут */
+.file-input{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); border:0; }
+
+/* Текст поверх SVG */
+.file-upload__text{
+    position:absolute; left:0; right:0; top:0; bottom:0;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:600; user-select:none; pointer-events:none;
+}
+
+/* Ховер/фокус ефекти як у кнопок */
+.file-upload:hover svg rect{ filter:brightness(0.97); }
+.file-upload:active svg rect{ filter:brightness(0.93); }
+.file-upload:focus-visible{ outline:2px solid #74CBBA; outline-offset:3px; border-radius:8px; }
+
+
+.upload-status {
+    width: 220px;
+    margin-left: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* лінійний прогрес */
+.progress {
+    position: relative;
+    flex: 1;
+    height: 8px;
+    background: rgba(116,203,186,.18);
+    border: 1px solid rgba(116,203,186,.35);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.progress__bar {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 0%;
+    background: linear-gradient(90deg,#74CBBA,#8DD294);
+    transition: width .15s ease;
+}
+
+/* відсоток */
+.progress__percent {
+    min-width: 40px;
+    text-align: right;
+    font-size: 12px;
+    color: #fff;
+    opacity: .85;
+}
+
+/* іконки стану */
+.status-icon { font-size: 14px; }
+.status-icon--ok { color: #8DD294; }
+.status-icon--err { color: #ff6b6b; }

@@ -8,6 +8,11 @@ import ua.sh1chiro.Bot.dto.DelaysDTO;
 import ua.sh1chiro.Bot.dto.KeysDTO;
 import ua.sh1chiro.Bot.utils.Competition;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 /**
  * Created by Sh1chiro on 12.05.2025.
  * <p>
@@ -38,15 +43,46 @@ public class ConfigAPI {
         BotConfig.config.setCompetitionOffers(!BotConfig.config.isCompetitionOffers());
         BotConfig.saveConfig();
 
-        if(BotConfig.config.isCompetitionOffers())
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    Competition.offerCompetition();
-                }
-            }).start();
+        if (BotConfig.config.isCompetitionOffers()) {
+            if (!Competition.offerCompetitionWorking) {
+                new Thread(Competition::offerCompetition).start();
+                return true;
+            }else
+                return false;
+        }else{
+            long startTime = System.currentTimeMillis();
+            long duration = 3 * 60 * 1000;
 
-        return BotConfig.config.isCompetitionOffers();
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+
+            Callable<Boolean> task = () -> {
+                while (System.currentTimeMillis() - startTime < duration) {
+                    if(!Competition.offerCompetitionWorking)
+                        return true;
+
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                        break;
+                    }
+                }
+
+                return false;
+            };
+
+            try {
+                Future<Boolean> resultFuture = executor.submit(task);
+
+                executor.shutdown();
+
+                return resultFuture.get();
+            }catch (Exception ex){
+                ex.printStackTrace();
+                executor.shutdown();
+                return false;
+            }
+        }
     }
 
     @GetMapping("/change-target-competition")
@@ -54,15 +90,47 @@ public class ConfigAPI {
         BotConfig.config.setCompetitionTargets(!BotConfig.config.isCompetitionTargets());
         BotConfig.saveConfig();
 
-        if(BotConfig.config.isCompetitionTargets())
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    Competition.targetCompetition();
-                }
-            }).start();
+        if (BotConfig.config.isCompetitionTargets()) {
+            if (!Competition.targetCompetitionWorking) {
+                new Thread(Competition::targetCompetition).start();
+                return true;
+            }
+            else
+                return false;
+        }else{
+            long startTime = System.currentTimeMillis();
+            long duration = 3 * 60 * 1000;
 
-        return BotConfig.config.isCompetitionTargets();
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+
+            Callable<Boolean> task = () -> {
+                while (System.currentTimeMillis() - startTime < duration) {
+                    if(!Competition.targetCompetitionWorking)
+                        return true;
+
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                        break;
+                    }
+                }
+
+                return false;
+            };
+
+            try {
+                Future<Boolean> resultFuture = executor.submit(task);
+
+                executor.shutdown();
+
+                return resultFuture.get();
+            }catch (Exception ex){
+                ex.printStackTrace();
+                executor.shutdown();
+                return false;
+            }
+        }
     }
 
     @PostMapping("/change-keys")
