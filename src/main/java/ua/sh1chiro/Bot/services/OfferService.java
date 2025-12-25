@@ -50,4 +50,8 @@ public class OfferService {
         return offerRepository.getByAssetId(assetId);
     }
 
+    public List<Offer> saveAll(List<Offer> offers){
+        return offerRepository.saveAll(offers);
+    }
+
 }

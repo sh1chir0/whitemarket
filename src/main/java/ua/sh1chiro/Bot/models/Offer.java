@@ -40,11 +40,37 @@ public class Offer {
     private LocalDateTime dateOfCreated;
     private LocalDateTime lastUpdate;
     private LocalDateTime tryUpdate;
+    private double minWM;
+    private String inventoryId;
+    private String productId;
 
     @PrePersist
     private void init(){
         dateOfCreated = LocalDateTime.now();
         lastUpdate = LocalDateTime.now();
         tryUpdate = LocalDateTime.now();
+    }
+
+    @Override
+    public String toString() {
+        return "Offer{" +
+                "id=" + id +
+                ", offerId='" + offerId + '\'' +
+                ", assetId='" + assetId + '\'' +
+                ", name='" + name + '\'' +
+                ", price=" + price +
+                ", minPrice=" + minPrice +
+                ", maxPrice=" + maxPrice +
+                ", minWithoutLock=" + minWithoutLock +
+                ", minWithLock=" + minWithLock +
+                ", tradable=" + tradable +
+                ", imageLink='" + imageLink + '\'' +
+                ", dateOfCreated=" + dateOfCreated +
+                ", lastUpdate=" + lastUpdate +
+                ", tryUpdate=" + tryUpdate +
+                ", minWM=" + minWM +
+                ", inventoryId='" + inventoryId + '\'' +
+                ", productId='" + productId + '\'' +
+                '}';
     }
 }

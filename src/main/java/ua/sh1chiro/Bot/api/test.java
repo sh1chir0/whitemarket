@@ -8,10 +8,12 @@ import ua.sh1chiro.Bot.config.BotConfig;
 import ua.sh1chiro.Bot.dto.SkinPricesDTO;
 import ua.sh1chiro.Bot.utils.Competition;
 import ua.sh1chiro.Bot.utils.DMarket;
+import ua.sh1chiro.Bot.utils.WhiteMarket;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -29,15 +31,13 @@ import java.util.List;
 public class test {
     @GetMapping("/test")
     public void test(){
-        String path = "MasSocketPrice_extract.csv";
+        WhiteMarket.setPartnerToken("8kcfheadktqofpsyrbaadjitnupzkcgxfyesmrmntect4l2nbg8t2bzm77fjmudd");
+        WhiteMarket.authorize();
 
-        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                System.out.println(line);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        var updated = WhiteMarket.editSellPriceUsd(
+                "1f0e1c49-e196-6d6a-8f03-eab3b11af6d8",
+                new BigDecimal("4.00")
+        );
+        System.out.println(updated);
     }
 }

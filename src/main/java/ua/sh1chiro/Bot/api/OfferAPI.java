@@ -9,10 +9,10 @@ import ua.sh1chiro.Bot.models.Offer;
 import ua.sh1chiro.Bot.services.OfferService;
 import ua.sh1chiro.Bot.utils.ConverterToJSON;
 import ua.sh1chiro.Bot.utils.DMarket;
+import ua.sh1chiro.Bot.utils.WhiteMarket;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Created by Sh1chiro on 30.04.2025.
@@ -31,11 +31,40 @@ public class OfferAPI {
     private final OfferService offerService;
 
     @PostMapping("/create")
-    public ResponseEntity<String> createOffers(@RequestBody List<Offer> offers) throws IOException, InterruptedException {
-        offers.removeIf(offer -> offer.getMaxPrice() == 0 || offer.getMinPrice() == 0 || offer.getPrice() == 0);
+    public ResponseEntity<String> createOffers(@RequestBody List<Offer> offers){
+        for (Offer offer : offers) {
+            System.out.println(offer.toString());
+        }
+        var res = WhiteMarket.sellOffersCs2(offers);
+        System.out.println(res);
+        Set<Integer> removeIdx = new HashSet<>();
 
-        DMarket.createOffers(BotConfig.config, offers);
+        for (WhiteMarket.SellResult r : res) {
+            if (r == null) continue;
 
+            int idx = r.offerIndex();
+            if (idx < 0 || idx >= offers.size()) continue;
+
+            if (r.errorMessage() != null && !r.errorMessage().isBlank()) {
+                removeIdx.add(idx);
+                continue;
+            }
+
+            if (r.productId() != null && !r.productId().isBlank()) {
+                Offer offer = offers.get(idx);
+                if (offer != null) {
+                    offer.setProductId(r.productId());
+                }
+            }
+        }
+
+        List<Integer> sorted = new ArrayList<>(removeIdx);
+        sorted.sort(Comparator.reverseOrder());
+        for (int idx : sorted) {
+            offers.remove(idx);
+        }
+
+        offerService.saveAll(offers);
         return ResponseEntity.ok("ok");
     }
 

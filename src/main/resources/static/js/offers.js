@@ -53,8 +53,7 @@ export function offers() {
                 <div class="back-header"><div class="header">МІН.ПОРІГ</div></div>
                 <div class="back-header"><div class="header">МАКС.ПОРІГ</div></div>
                 <div class="back-header"><div class="header">МОЯ ЦІНА</div></div>
-                <div class="back-header"><div class="header">DM MIN <img src="/img/lock.png" alt="lock" class="lock-icon"></div></div>
-                <div class="back-header"><div class="header">DM MIN <img src="/img/green lock.png" alt="lock" class="lock-icon"></div></div>
+                <div class="back-header"><div class="header">МІН WM</div></div>
                 <div class="back-header"><div class="header">ВИДАЛИТИ</div></div>
             `
             data.forEach(item => {
@@ -64,8 +63,7 @@ export function offers() {
             <div class="cell"><input type="number" value="${item.minPrice}" data-asset="${item.assetId}" data-type="minPrice"></div>
             <div class="cell"><input type="number" value="${item.maxPrice}" data-asset="${item.assetId}" data-type="maxPrice"></div>
             <div class="cell"><input type="text" value="${item.price}" readonly data-asset="${item.assetId}" data-type="myPrice"></div>
-            <div class="cell"><input type="text" value="${item.minWithLock}" readonly data-asset="${item.assetId}" data-type="locked"></div>
-            <div class="cell"><input type="text" value="${item.minWithoutLock}" readonly data-asset="${item.assetId}" data-type="unlocked"></div>
+            <div class="cell"><input type="text" value="${item.minWM}" readonly data-asset="${item.assetId}" data-type="minWM"></div>
             <div class="cell"><button class="delete-btn" data-asset="${item.id}">🗑</button></div>
             `
             })

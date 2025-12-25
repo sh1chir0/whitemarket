@@ -58,7 +58,7 @@ body {
 .table-inv {
     display: grid;
     /*grid-template-columns: repeat(6, 1fr);*/
-    grid-template-columns: 1fr 3fr 2fr 2fr 2fr 2fr;
+    grid-template-columns: 1fr 3fr 2fr 2fr 2fr;
     gap: 15px;
 }
 
@@ -72,7 +72,7 @@ body {
 .table-targets {
     display: grid;
     /*grid-template-columns: repeat(7, 1fr);*/
-    grid-template-columns: 1fr 3fr 1fr 1fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 3fr 1fr 1fr 1fr 1fr 1fr;
     gap: 15px;
 }
 

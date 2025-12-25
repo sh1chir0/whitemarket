@@ -38,10 +38,10 @@ const falseSvg = `
                             `
 
 
-export function targets() {
+export function targets(link) {
     const signal = controllerTargets.signal
 
-    fetch('/api/targets/get-all', {
+    fetch(link, {
         method: 'GET',
         signal: signal
     }).then(response => response.json())
@@ -69,7 +69,20 @@ export function targets() {
                         <div class="cell"><input type="number" value="${item.minPrice}" data-asset="${item.id}" data-type="minPrice"></div>
                         <div class="cell"><input type="number" value="${item.maxPrice}" data-asset="${item.id}" data-type="maxPrice"></div>
                         <div class="cell"><input type="number" value="${item.price}" readonly data-asset="${item.id}" data-type="price"></div>
-                        <div class="cell"><input type="text" value="${item.maxTarget}" readonly data-asset="${item.id}" data-type="maxTarget"></div>
+                        <div class="cell tooltip" id="target-${item.id}">
+                            <input type="text" value="${item.maxTarget}" readonly data-asset="${item.id}" data-type="maxTarget">
+                            <div class="popup-table">
+                                <table>
+                                    <tr><th>Ціна</th><th>Кількість</th></tr>
+                                    ${(item.targets || []).map(t => `
+                                        <tr>
+                                            <td>${t.price}</td>
+                                            <td>${t.quantity}</td>
+                                        </tr>
+                                    `).join('')}
+                                </table>
+                            </div>
+                        </div>  
                         <div class="cell"><input type="text" value="${item.minWithLock}" readonly data-asset="${item.id}" data-type="locked"></div>
                         <div class="cell"><input type="text" value="${item.minWithoutLock}" readonly data-asset="${item.id}" data-type="unlocked"></div>
                         <div class="cell"><button class="delete-btn" data-asset="${item.id}">🗑</button></div>
@@ -111,7 +124,7 @@ export function targets() {
                             }
 
                             mainBlock.innerHTML = ``
-                            targets()
+                            targets('/api/targets/get-all')
                             return response.text()
                         })
                         .then(data => {
@@ -161,7 +174,7 @@ export function targets() {
                         }
 
                         mainBlock.innerHTML = ``
-                        targets()
+                        targets('/api/targets/get-all')
                         return response.text()
                     })
                     .then(data => {
@@ -227,6 +240,11 @@ export function targets() {
                         })
                 }else
                     alert("Зачекай, обробляю попередній запит.")
+            })
+
+            document.getElementById('load-max-targets-btn').addEventListener('click', () => {
+                mainBlock.innerHTML = ``
+                targets('/api/targets/get-all-with-targets')
             })
         })
 }

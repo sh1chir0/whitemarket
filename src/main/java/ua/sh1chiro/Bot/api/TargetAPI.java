@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import ua.sh1chiro.Bot.dto.SkinPricesDTO;
 import ua.sh1chiro.Bot.dto.TargetImportItem;
+import ua.sh1chiro.Bot.dto.TargetPriceDTO;
+import ua.sh1chiro.Bot.dto.TargetWithSkinsDTO;
 import ua.sh1chiro.Bot.models.Offer;
 import ua.sh1chiro.Bot.models.Target;
 import ua.sh1chiro.Bot.services.TargetService;
@@ -77,6 +79,36 @@ public class TargetAPI {
     public ResponseEntity<List<Target>> getTargets(){
         List<Target> targets = targetService.getAllTargets();
         return ResponseEntity.ok(targets);
+    }
+
+    @GetMapping("/get-all-with-targets")
+    public ResponseEntity<List<TargetWithSkinsDTO>> getTargetsWithMax(){
+        List<Target> targets = targetService.getAllTargets();
+
+        List<TargetWithSkinsDTO> result = targets.stream()
+                .map(t -> {
+                    List<TargetPriceDTO> skins = DMarket.getTargetsForSkin(t.getName());
+
+                    return new TargetWithSkinsDTO(
+                            t.getId(),
+                            t.getTargetId(),
+                            t.getAssetId(),
+                            t.getName(),
+                            t.getPrice(),
+                            t.getMinPrice(),
+                            t.getMaxPrice(),
+                            t.getMaxTarget(),
+                            t.getMinWithoutLock(),
+                            t.getMinWithLock(),
+                            t.getImageLink(),
+                            t.getDateOfCreated(),
+                            t.getLastUpdateTime(),
+                            skins
+                    );
+                })
+                .toList();
+
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/update")

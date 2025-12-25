@@ -28,4 +28,21 @@ public class InventoryDMarketDTO {
     private double price;
     private boolean tradable;
     private SkinPricesDTO skinPricesDTO;
+    private double minWM;
+    private String inventoryId;
+
+    @Override
+    public String toString() {
+        return "InventoryDMarketDTO{" +
+                "assetId='" + assetId + '\'' +
+                ", name='" + name + '\'' +
+                ", imageLink='" + imageLink + '\'' +
+                ", stickers='" + stickers + '\'' +
+                ", floatValue=" + floatValue +
+                ", price=" + price +
+                ", tradable=" + tradable +
+                ", skinPricesDTO=" + skinPricesDTO +
+                ", minWM=" + minWM +
+                '}';
+    }
 }
