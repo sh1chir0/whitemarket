@@ -61,4 +61,8 @@ public class TargetService {
     public Target getByName(String name){
         return targetRepository.findByName(name);
     }
+
+    public List<Target> saveAll(List<Target> targets){
+        return targetRepository.saveAll(targets);
+    }
 }

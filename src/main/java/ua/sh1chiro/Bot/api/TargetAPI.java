@@ -8,14 +8,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import ua.sh1chiro.Bot.dto.SkinPricesDTO;
-import ua.sh1chiro.Bot.dto.TargetImportItem;
-import ua.sh1chiro.Bot.dto.TargetPriceDTO;
-import ua.sh1chiro.Bot.dto.TargetWithSkinsDTO;
+import ua.sh1chiro.Bot.dto.*;
 import ua.sh1chiro.Bot.models.Offer;
 import ua.sh1chiro.Bot.models.Target;
 import ua.sh1chiro.Bot.services.TargetService;
 import ua.sh1chiro.Bot.utils.DMarket;
+import ua.sh1chiro.Bot.utils.WhiteMarket;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.*;
 
@@ -46,16 +45,33 @@ public class TargetAPI {
 
     @PostMapping("/update-info")
     public List<SkinPricesDTO> updateInfo(@RequestBody List<String> names){
+//        WhiteMarket.setPartnerToken("8kcfheadktqofpsyrbaadjitnupzkcgxfyesmrmntect4l2nbg8t2bzm77fjmudd");
+//        WhiteMarket.authorize();
+
         List<SkinPricesDTO> skinPricesDTOS = new ArrayList<>();
         int i = 0;
         for (String name : names) {
-            SkinPricesDTO skinPricesDTO = DMarket.getOffersBySkin(name.trim());
+            SkinPricesDTO skinPricesDTO = new SkinPricesDTO();
             skinPricesDTO.setName(name);
             skinPricesDTO.setId(i);
-            skinPricesDTO.setMaxTarget(DMarket.getMaxTargetWithoutAttributes(name));
-            skinPricesDTO.setTargets(DMarket.getTargetsForSkin(name));
+
+            LowestSellInfo lowestSellInfo = WhiteMarket.getLowestSellInfoUsdCs2(name);
+            if(lowestSellInfo.imageLink() != null)
+                skinPricesDTO.setImageLink(lowestSellInfo.imageLink());
+
+            skinPricesDTO.setMinWM(lowestSellInfo.priceUsd());
+
+            List<TargetPriceDTO> prices = WhiteMarket.getPublicBuyTargetsCs2(name, 10);
+            if(!prices.isEmpty()) {
+                skinPricesDTO.setMaxTarget(prices.getFirst().getPrice());
+                skinPricesDTO.setTargets(prices);
+            }else{
+                skinPricesDTO.setMaxTarget(0);
+                skinPricesDTO.setTargets(new ArrayList<>());
+            }
 
             skinPricesDTOS.add(skinPricesDTO);
+            System.out.println(skinPricesDTO.toString());
             i++;
         }
 
@@ -63,17 +79,26 @@ public class TargetAPI {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<String> createTargets(@RequestBody List<Target> targets) throws IOException, InterruptedException {
-        targets.removeIf(target -> target.getMaxPrice() == 0 || target.getMinPrice() == 0 || target.getPrice() == 0);
+    public ResponseEntity<String> createTargets(@RequestBody List<Target> targets) {
+        targets.removeIf(t -> t == null || t.getPrice() == 0 || t.getMinPrice() == 0 || t.getMaxPrice() == 0);
 
-        for (Target target : targets) {
-            System.out.println(target.toString());
+        int saved = 0;
+
+        for (Target t : targets) {
+            try {
+                WhiteMarket.Order o = WhiteMarket.createBuyTargetCs2(t.getName(), t.getPrice());
+                t.setOrderId(o.id());
+                t.setLastUpdateTime(LocalDateTime.now());
+                targetService.save(t);
+                saved++;
+            } catch (Exception ex) {
+                System.out.println("❌ Failed create target: " + t.getName() + " -> " + ex.getMessage());
+            }
         }
 
-        DMarket.createTargets(targets);
-
-        return ResponseEntity.ok("ok");
+        return ResponseEntity.ok("saved=" + saved + " / total=" + targets.size());
     }
+
 
     @GetMapping("/get-all")
     public ResponseEntity<List<Target>> getTargets(){
@@ -87,17 +112,27 @@ public class TargetAPI {
 
         List<TargetWithSkinsDTO> result = targets.stream()
                 .map(t -> {
-                    List<TargetPriceDTO> skins = DMarket.getTargetsForSkin(t.getName());
+                    List<TargetPriceDTO> skins = WhiteMarket.getPublicBuyTargetsCs2(t.getName(), 10);
+
+                    String myOrderId = t.getOrderId();
+
+                    if (myOrderId != null && !myOrderId.isBlank()) {
+                        skins.removeIf(s -> myOrderId.equals(s.getOrderId()));
+                    }
+
+                    if(skins.isEmpty())
+                        skins = new ArrayList<>();
 
                     return new TargetWithSkinsDTO(
                             t.getId(),
                             t.getTargetId(),
+                            t.getOrderId(),
                             t.getAssetId(),
                             t.getName(),
                             t.getPrice(),
                             t.getMinPrice(),
                             t.getMaxPrice(),
-                            t.getMaxTarget(),
+                            skins.isEmpty() ? 0 : skins.getFirst().getPrice(),
                             t.getMinWithoutLock(),
                             t.getMinWithLock(),
                             t.getImageLink(),
@@ -166,7 +201,16 @@ public class TargetAPI {
                     targets.add(mapToTarget(it));
                 }
 
-                DMarket.createTargets(targets);
+                for (Target t : targets) {
+                    try {
+                        WhiteMarket.Order o = WhiteMarket.createBuyTargetCs2(t.getName(), t.getPrice());
+                        t.setOrderId(o.id());
+                        t.setLastUpdateTime(LocalDateTime.now());
+                        targetService.save(t);
+                    } catch (Exception ex) {
+                        System.out.println("❌ Failed create target: " + t.getName() + " -> " + ex.getMessage());
+                    }
+                }
 
                 return ResponseEntity.ok("Успішно оброблено: " + targets.size());
             }

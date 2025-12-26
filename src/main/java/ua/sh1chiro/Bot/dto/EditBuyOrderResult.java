@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Created by Sh1chiro on 12.08.2025.
+ * Created by Sh1chiro on 26.12.2025.
  * <p>
  * When I wrote this code, only god and
  * I knew how it worked.
@@ -17,19 +17,12 @@ import lombok.Setter;
 
 @NoArgsConstructor
 @AllArgsConstructor
-@Setter
 @Getter
-public class TargetPriceDTO{
+@Setter
+public class EditBuyOrderResult {
     private String orderId;
+    private String status;
     private double price;
-    private int quantity;
-
-    @Override
-    public String toString() {
-        return "TargetPriceDTO{" +
-                "orderId='" + orderId + '\'' +
-                ", price=" + price +
-                ", quantity=" + quantity +
-                '}';
-    }
+    private String errorCategory;
+    private String errorMessage;
 }

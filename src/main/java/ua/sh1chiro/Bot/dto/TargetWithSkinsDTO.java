@@ -25,6 +25,7 @@ import java.util.List;
 public class TargetWithSkinsDTO {
     private Long id;
     private String targetId;
+    private String orderId;
     private String assetId;
     private String name;
     private double price;

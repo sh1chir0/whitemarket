@@ -65,7 +65,7 @@ body {
 .table-offers {
     display: grid;
     /*grid-template-columns: repeat(6, 1fr);*/
-    grid-template-columns: 1fr 3fr 1fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 3fr 1fr 1fr 1fr 1fr;
     gap: 15px;
 }
 
@@ -79,7 +79,7 @@ body {
 .table-eight {
     display: grid;
     /*grid-template-columns: repeat(8, 1fr);*/
-    grid-template-columns: 1fr 3fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 3fr 1fr 1fr 1fr 1fr 1fr;
     gap: 15px;
 }
 
@@ -134,8 +134,8 @@ body {
 .delete-btn {
     width: 100%;
     background-color: #1e1e1e;
-    color: #ff4d4d;
-    border: 1px solid #ff4d4d;
+    color: #E31F57;
+    border: 1px solid #860D30;
     padding: 6px 10px;
     border-radius: 6px;
     cursor: pointer;
@@ -161,6 +161,21 @@ body {
 /*    background-color: #1D1F20;*/
 /*}*/
 
+/*.header {*/
+/*    position: relative;*/
+/*    padding: 10px;*/
+/*    text-align: center;*/
+/*    font-weight: bold;*/
+/*    border-radius: 6px;*/
+/*    background-color: #1D1F20;*/
+/*    color: transparent;*/
+
+/*    !* для градієнту *!*/
+/*    background-image: linear-gradient(90deg, #74CBBA, #8DD294);*/
+/*    background-clip: text;*/
+/*    -webkit-background-clip: text;*/
+/*    -webkit-text-fill-color: transparent;*/
+/*}*/
 .header {
     position: relative;
     padding: 10px;
@@ -171,7 +186,7 @@ body {
     color: transparent;
 
     /* для градієнту */
-    background-image: linear-gradient(90deg, #74CBBA, #8DD294);
+    background-image: linear-gradient(90deg, #860D30, #E31F57);
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -253,7 +268,7 @@ input[type=number]::-webkit-outer-spin-button {
     background: transparent;
     color: white;
     border: 2px solid;
-    border-image: linear-gradient(to right, #74CBBA, #8DD294) 1;
+    border-image: linear-gradient(to right, #860D30, #E31F57) 1;
     outline: none;
     font-size: 16px;
 }

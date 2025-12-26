@@ -5,8 +5,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
+import ua.sh1chiro.Bot.config.BotConfig;
+import ua.sh1chiro.Bot.dto.EditBuyOrderResult;
 import ua.sh1chiro.Bot.dto.InventoryDMarketDTO;
+import ua.sh1chiro.Bot.dto.LowestSellInfo;
+import ua.sh1chiro.Bot.dto.TargetPriceDTO;
 import ua.sh1chiro.Bot.models.Offer;
+import ua.sh1chiro.Bot.models.Target;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -36,8 +41,7 @@ public final class WhiteMarket {
             .connectTimeout(Duration.ofSeconds(20))
             .build();
 
-    @Setter
-    private static volatile String partnerToken = System.getenv("WHITE_MARKET_PARTNER_TOKEN");
+    private static final String partnerToken = BotConfig.config.getPublicAPIKey();
     @Getter
     private static volatile String accessToken;
     private static volatile Instant accessTokenIssuedAt;
@@ -83,6 +87,496 @@ public final class WhiteMarket {
     public static PersonProfile getMe() {
         return getMe(false);
     }
+
+    public static EditBuyOrderResult editBuyOrderPriceUsdCs2(
+            String orderId,
+            double newPriceUsd
+    ) {
+        return editBuyOrderPriceUsd("CSGO", orderId, newPriceUsd, false);
+    }
+
+    private static EditBuyOrderResult editBuyOrderPriceUsd(
+            String appEnum,
+            String orderId,
+            double newPriceUsd,
+            boolean alreadyRetried
+    ) {
+        if (accessToken == null || accessToken.isBlank()) authorize();
+
+        if (orderId == null || orderId.isBlank())
+            throw new IllegalArgumentException("orderId is blank");
+        if (newPriceUsd <= 0)
+            throw new IllegalArgumentException("newPriceUsd must be > 0");
+
+        String mutation =
+                "mutation{" +
+                        "order_edit(" +
+                        "id:\"" + escapeGraphqlString(orderId) + "\" " +
+                        "price:{ value:\"" + newPriceUsd + "\" currency:USD }" +
+                        "quantity:1" +
+                        "){" +
+                        "id status price{ value currency }" +
+                        "}" +
+                        "}";
+
+        var headers = new LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + accessToken);
+
+        GraphQlCallResult res = postGraphQL(mutation, headers, null);
+
+        // 401 → реавторизація
+        if (res.httpStatus == 401 || isUnauthenticatedGraphQl(res.json)) {
+            if (!alreadyRetried) {
+                authorize();
+                return editBuyOrderPriceUsd(appEnum, orderId, newPriceUsd, true);
+            }
+            throw new UnauthorizedException("Unauthorized (order_edit)");
+        }
+
+        // 4xx / 5xx
+        if (res.httpStatus < 200 || res.httpStatus >= 300) {
+            return new EditBuyOrderResult(
+                    orderId,
+                    null,
+                    0,
+                    "http_error",
+                    "HTTP " + res.httpStatus + ": " + res.rawBody
+            );
+        }
+
+        if (hasGraphQlErrors(res.json)) {
+            return new EditBuyOrderResult(
+                    orderId,
+                    null,
+                    0,
+                    "graphql_error",
+                    safeJson(res.json)
+            );
+        }
+
+        JsonNode node = res.json.path("data").path("order_edit");
+        if (node.isMissingNode() || node.isNull()) {
+            return new EditBuyOrderResult(
+                    orderId,
+                    null,
+                    0,
+                    "empty_response",
+                    "order_edit returned null"
+            );
+        }
+
+        return new EditBuyOrderResult(
+                textOrNull(node.get("id")),
+                textOrNull(node.get("status")),
+                safeParseDouble(node.path("price").path("value").asText()),
+                null,
+                null
+        );
+    }
+
+    public static Optional<DealHistoryHit> findDealInHistoryByProductId(String productId, int limit) {
+        return findDealInHistoryByProductId(productId, limit, false);
+    }
+
+    public static List<DealHistoryItem> getAllDealsHistoryCs2(
+            String statusEnumOrNull,
+            int pageSize,
+            int maxPages
+    ) {
+        if (pageSize <= 0) pageSize = 50;
+        if (maxPages <= 0) maxPages = 20;
+
+        List<DealHistoryItem> all = new ArrayList<>();
+        String cursor = null;
+
+        for (int page = 0; page < maxPages; page++) {
+            DealHistoryPage p = getDealsHistoryPageCs2(null, statusEnumOrNull, pageSize, cursor);
+            if (p.items() != null) all.addAll(p.items());
+
+            if (p.pageInfo() == null || !p.pageInfo().hasNextPage()) break;
+            cursor = p.pageInfo().endCursor();
+            if (cursor == null || cursor.isBlank()) break;
+        }
+
+        return all;
+    }
+
+
+    public static DealHistoryPage getDealsHistoryPageCs2(
+            String nameHash,
+            String statusEnumOrNull,
+            int first,
+            String afterCursor
+    ) {
+        return getDealsHistoryPage("CSGO", nameHash, statusEnumOrNull, first, afterCursor, false);
+    }
+
+    private static DealHistoryPage getDealsHistoryPage(
+            String appEnum,
+            String nameHash,
+            String statusEnumOrNull,
+            int first,
+            String afterCursor,
+            boolean alreadyRetried
+    ) {
+        if (accessToken == null || accessToken.isBlank()) authorize();
+        if (first <= 0) first = 50;
+
+        String afterPart = (afterCursor == null || afterCursor.isBlank())
+                ? ""
+                : "after:\"" + escapeGraphqlString(afterCursor) + "\"";
+
+        StringBuilder search = new StringBuilder();
+        // якщо хочеш звузити до конкретного item
+        if (nameHash != null && !nameHash.isBlank()) {
+            search.append("nameHash:\"").append(escapeGraphqlString(nameHash)).append("\" ");
+            search.append("nameStrict:true ");
+        }
+
+        // статус (опціонально)
+        if (statusEnumOrNull != null && !statusEnumOrNull.isBlank()) {
+            // enum без лапок
+            search.append("status: ").append(statusEnumOrNull).append(" ");
+        }
+
+        // сортування за датою (як у доках)
+        search.append("sort:{ field: CREATED_AT type: DESC } ");
+
+        String query =
+                "query{ deal_history(" +
+                        (search.length() > 0 ? "search:{ " + search + " } " : "") +
+                        "forwardPagination:{ first:" + first + " " + afterPart + " }" +
+                        "){ " +
+                        "totalCount " +
+                        "pageInfo{ hasNextPage endCursor } " +
+                        "edges{ node{ " +
+                        "id customId " +
+                        // seller/buyer
+                        "seller{ id steamId steamName } " +
+                        "buyer{ id steamId steamName } " +
+                        // product (історичний product) — нам потрібен product.id + ціна + опис
+                        "product{ id appId contextId assetId status archivedAt " +
+                        "price{ value currency } " +
+                        "description{ nameHash name icon iconLarge } " +
+                        "} " +
+                        "} }" +
+                        "} }";
+
+        var headers = new LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + accessToken);
+
+        GraphQlCallResult res = postGraphQL(query, headers, null);
+
+        if (res.httpStatus == 401 || isUnauthenticatedGraphQl(res.json)) {
+            if (!alreadyRetried) {
+                authorize();
+                return getDealsHistoryPage(appEnum, nameHash, statusEnumOrNull, first, afterCursor, true);
+            }
+            throw new UnauthorizedException("Unauthorized (deal_history) even after re-auth. Response: " + safeJson(res.json));
+        } else if (res.httpStatus < 200 || res.httpStatus >= 300) {
+            throw new WhiteMarketException("HTTP " + res.httpStatus + " body=" + res.rawBody);
+        }
+
+        assertNoGraphQlErrors(res.json);
+
+        JsonNode root = res.json.path("data").path("deal_history");
+        JsonNode edges = root.path("edges");
+
+        List<DealHistoryItem> items = new ArrayList<>();
+        if (edges.isArray()) {
+            for (JsonNode e : edges) {
+                JsonNode n = e.path("node");
+
+                JsonNode seller = n.path("seller");
+                JsonNode buyer = n.path("buyer");
+                JsonNode product = n.path("product");
+                JsonNode price = product.path("price");
+                JsonNode desc = product.path("description");
+
+                DealHistoryItem item = new DealHistoryItem(
+                        textOrNull(n.get("id")),
+                        textOrNull(n.get("customId")),
+                        textOrNull(n.get("createdAt")), // якщо поля нема — буде null, ок
+                        seller.isMissingNode() || seller.isNull() ? null : new PersonPublic(
+                                textOrNull(seller.get("id")),
+                                textOrNull(seller.get("steamId")),
+                                textOrNull(seller.get("steamName"))
+                        ),
+                        buyer.isMissingNode() || buyer.isNull() ? null : new PersonPublic(
+                                textOrNull(buyer.get("id")),
+                                textOrNull(buyer.get("steamId")),
+                                textOrNull(buyer.get("steamName"))
+                        ),
+                        product.isMissingNode() || product.isNull() ? null : new ProductHistory(
+                                textOrNull(product.get("id")),
+                                intOrNull(product.get("appId")),
+                                intOrNull(product.get("contextId")),
+                                textOrNull(product.get("assetId")),
+                                (price.isMissingNode() || price.isNull()) ? null : new Money(
+                                        textOrNull(price.get("value")),
+                                        textOrNull(price.get("currency"))
+                                ),
+                                textOrNull(product.get("status")),
+                                textOrNull(product.get("archivedAt")),
+                                (desc.isMissingNode() || desc.isNull()) ? null : new SteamItemDesc(
+                                        textOrNull(desc.get("nameHash")),
+                                        textOrNull(desc.get("name")),
+                                        textOrNull(desc.get("icon")),
+                                        textOrNull(desc.get("iconLarge"))
+                                )
+                        )
+                );
+
+                items.add(item);
+            }
+        }
+
+        JsonNode pi = root.path("pageInfo");
+        PageInfo pageInfo = new PageInfo(
+                pi.path("hasNextPage").asBoolean(false),
+                textOrNull(pi.get("endCursor"))
+        );
+
+        return new DealHistoryPage(items, pageInfo, intOrNull(root.get("totalCount")));
+    }
+
+
+    private static Optional<DealHistoryHit> findDealInHistoryByProductId(String productId, int limit, boolean alreadyRetried) {
+        if (accessToken == null || accessToken.isBlank()) authorize();
+        if (productId == null || productId.isBlank()) throw new IllegalArgumentException("productId is blank");
+        if (limit <= 0) limit = 50;
+
+        // Беремо просто останні "limit" записів історії.
+        // За потреби можеш додати createdAt.from/to.
+        String q =
+                "query{ deal_history(" +
+                        "search:{ sort:{ field: CREATED_AT type: DESC } } " +
+                        "forwardPagination:{ first:" + limit + " }" +
+                        "){ edges{ node{ " +
+                        "id status createdAt " +
+                        "product{ params{ product{ id slug price{ value currency } } } } " +
+                        "} } } }";
+
+        var headers = new LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + accessToken);
+
+        GraphQlCallResult res = postGraphQL(q, headers, null);
+
+        if (res.httpStatus == 401 || isUnauthenticatedGraphQl(res.json)) {
+            if (!alreadyRetried) {
+                authorize();
+                return findDealInHistoryByProductId(productId, limit, true);
+            }
+            throw new UnauthorizedException("Unauthorized (deal_history) even after re-auth. Response: " + safeJson(res.json));
+        }
+        assertNoGraphQlErrors(res.json);
+
+        JsonNode edges = res.json.path("data").path("deal_history").path("edges");
+        if (!edges.isArray()) return Optional.empty();
+
+        for (JsonNode e : edges) {
+            JsonNode n = e.path("node");
+
+            JsonNode p = n.path("product").path("params").path("product");
+            String pid = textOrNull(p.get("id"));
+            if (pid == null) continue;
+
+            if (pid.equals(productId)) {
+                String slug = textOrNull(p.get("slug"));
+
+                JsonNode price = p.path("price");
+                double priceUsd = safeParseDouble(textOrNull(price.get("value")));
+
+                return Optional.of(new DealHistoryHit(
+                        textOrNull(n.get("id")),
+                        textOrNull(n.get("status")),
+                        pid,
+                        slug,
+                        priceUsd,
+                        textOrNull(n.get("createdAt"))
+                ));
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    public static java.util.List<EditOfferResult> editSellOffersPricesUsdCs2(java.util.List<Offer> offers) {
+        return editSellOffersPricesUsd(offers, false);
+    }
+
+    private static java.util.List<EditOfferResult> editSellOffersPricesUsd(java.util.List<Offer> offers, boolean alreadyRetried) {
+        if (offers == null || offers.isEmpty()) return java.util.List.of();
+        if (accessToken == null || accessToken.isBlank()) authorize();
+
+        // нормалізуємо список (щоб індекси були стабільні)
+        java.util.List<Offer> normalized = new java.util.ArrayList<>();
+        for (Offer o : offers) if (o != null) normalized.add(o);
+        if (normalized.isEmpty()) return java.util.List.of();
+
+        // 1) заздалегідь відмічаємо invalid і формуємо validItems + мапу sentIndex -> originalIndex
+        java.util.Map<Integer, EditOfferResult> prefilled = new java.util.HashMap<>();
+        java.util.List<Integer> sentToOriginal = new java.util.ArrayList<>();
+
+        StringBuilder validItems = new StringBuilder();
+        validItems.append("[");
+
+        for (int originalIndex = 0; originalIndex < normalized.size(); originalIndex++) {
+            Offer o = normalized.get(originalIndex);
+
+            String productId = o.getProductId();
+            double priceUsd = o.getPrice();
+
+            if (productId == null || productId.isBlank() || priceUsd <= 0) {
+                prefilled.put(originalIndex, new EditOfferResult(
+                        originalIndex,
+                        o.getId() == null ? null : String.valueOf(o.getId()),
+                        null,
+                        productId,
+                        null,
+                        null,
+                        "USD",
+                        "invalid_input",
+                        "Skip: productId blank or priceUsd <= 0"
+                ));
+                continue;
+            }
+
+            if (!sentToOriginal.isEmpty()) validItems.append(", ");
+            sentToOriginal.add(originalIndex);
+
+            String pid = escapeGraphqlString(productId);
+            String value = java.math.BigDecimal.valueOf(priceUsd)
+                    .setScale(2, java.math.RoundingMode.HALF_UP)
+                    .toPlainString();
+
+            validItems.append("{ ")
+                    .append("productId: \"").append(pid).append("\" ")
+                    .append("price: { value: \"").append(value).append("\" currency: USD } ")
+                    .append("}");
+        }
+
+        validItems.append("]");
+
+        // якщо немає валідних — повертаємо тільки invalid
+        if (sentToOriginal.isEmpty()) {
+            java.util.List<EditOfferResult> onlyInvalid = new java.util.ArrayList<>();
+            for (int i = 0; i < normalized.size(); i++) {
+                onlyInvalid.add(prefilled.getOrDefault(i, new EditOfferResult(
+                        i,
+                        normalized.get(i).getId() == null ? null : String.valueOf(normalized.get(i).getId()),
+                        null,
+                        normalized.get(i).getProductId(),
+                        null,
+                        null,
+                        "USD",
+                        "invalid_input",
+                        "No valid items"
+                )));
+            }
+            return onlyInvalid;
+        }
+
+        String mutation =
+                "mutation{ market_edit_multiple(items: " + validItems + "){ " +
+                        "index " +
+                        "product{ " +
+                        "  __typename " +
+                        "  ... on MarketProduct { id slug price{ value currency } } " +
+                        "  ... on MarketProductHistory { id price{ value currency } } " +
+                        "} " +
+                        "errorCategory " +
+                        "errorMessage " +
+                        "} }";
+
+        var headers = new java.util.LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + accessToken);
+
+        GraphQlCallResult res = postGraphQL(mutation, headers, null);
+
+        if (res.httpStatus == 401 || isUnauthenticatedGraphQl(res.json)) {
+            if (!alreadyRetried) {
+                authorize();
+                return editSellOffersPricesUsd(offers, true);
+            }
+            throw new UnauthorizedException("Unauthorized (market_edit_multiple) even after re-auth. Response: " + res.rawBody);
+        }
+        if (res.httpStatus < 200 || res.httpStatus >= 300) {
+            throw new WhiteMarketException("HTTP " + res.httpStatus + " body=" + res.rawBody);
+        }
+
+        assertNoGraphQlErrors(res.json);
+
+        JsonNode arr = res.json.path("data").path("market_edit_multiple");
+        if (!arr.isArray()) {
+            throw new WhiteMarketException("market_edit_multiple missing/invalid. Full: " + safeJson(res.json));
+        }
+
+        java.util.Map<Integer, EditOfferResult> edited = new java.util.HashMap<>();
+
+        for (JsonNode n : arr) {
+            int sentIndex = n.path("index").asInt(-1);
+            if (sentIndex < 0 || sentIndex >= sentToOriginal.size()) continue;
+
+            int originalIndex = sentToOriginal.get(sentIndex);
+            Offer o = normalized.get(originalIndex);
+
+            JsonNode product = n.path("product");
+            String typeName = textOrNull(product.get("__typename"));
+
+            String pid = null, slug = null, priceValue = null, priceCurrency = null;
+            if (product != null && !product.isMissingNode() && !product.isNull()) {
+                pid = textOrNull(product.get("id"));
+                slug = textOrNull(product.get("slug"));
+                JsonNode price = product.path("price");
+                priceValue = textOrNull(price.get("value"));
+                priceCurrency = textOrNull(price.get("currency"));
+            }
+
+            edited.put(originalIndex, new EditOfferResult(
+                    originalIndex,
+                    o.getId() == null ? null : String.valueOf(o.getId()),
+                    typeName,
+                    pid,
+                    slug,
+                    priceValue,
+                    priceCurrency,
+                    textOrNull(n.get("errorCategory")),
+                    textOrNull(n.get("errorMessage"))
+            ));
+        }
+
+        // фінальний список у порядку originalIndex
+        java.util.List<EditOfferResult> finalOut = new java.util.ArrayList<>(normalized.size());
+        for (int i = 0; i < normalized.size(); i++) {
+            EditOfferResult r = edited.get(i);
+            if (r != null) {
+                finalOut.add(r);
+                continue;
+            }
+            EditOfferResult pre = prefilled.get(i);
+            if (pre != null) {
+                finalOut.add(pre);
+                continue;
+            }
+
+            Offer o = normalized.get(i);
+            finalOut.add(new EditOfferResult(
+                    i,
+                    o.getId() == null ? null : String.valueOf(o.getId()),
+                    null,
+                    o.getProductId(),
+                    null,
+                    null,
+                    "USD",
+                    "unknown",
+                    "No result for this item (missing index in response)"
+            ));
+        }
+
+        return finalOut;
+    }
+
 
     public static Order createBuyOrderCs2(String nameHash, BigDecimal priceUsd) {
         return createBuyOrder("CSGO", nameHash, priceUsd, "USD", 1, false);
@@ -477,6 +971,34 @@ public final class WhiteMarket {
         return getPublicBuyOrdersByNameHash("CSGO", nameHash, limit, false);
     }
 
+    public static List<TargetPriceDTO> getPublicBuyTargetsCs2(String nameHash, int limit) {
+        var orders = getPublicBuyOrdersCs2ByNameHash(nameHash, limit);
+
+        List<TargetPriceDTO> out = new ArrayList<>();
+        for (PublicOrder o : orders) {
+            if (o == null) continue;
+
+            double price = safeParseDouble(o.priceValue());
+            int qty = o.quantity() == null ? 0 : o.quantity();
+
+            if (price <= 0 || qty <= 0) continue;
+
+            out.add(new TargetPriceDTO(o.id(), price, qty));
+        }
+
+        out.sort(Comparator.comparingDouble(TargetPriceDTO::getPrice).reversed());
+        return out;
+    }
+
+    private static double safeParseDouble(String s) {
+        if (s == null || s.isBlank()) return 0d;
+        try {
+            return Double.parseDouble(s.trim());
+        } catch (Exception e) {
+            return 0d;
+        }
+    }
+
     /**
      * Публічні ордери (всі на платформі) по nameHash.
      * Реально корисно, щоб подивитись “які bid-и стоять” по цьому скіну.
@@ -527,7 +1049,7 @@ public final class WhiteMarket {
         }
 
         assertNoGraphQlErrors(res.json);
-
+        System.out.println(res.json);
         List<PublicOrder> out = new ArrayList<>();
         JsonNode edges = res.json.path("data").path("order_list").path("edges");
         if (edges.isArray()) {
@@ -547,6 +1069,275 @@ public final class WhiteMarket {
         return out;
     }
 
+    public static List<BuyTargetResult> createBuyTargetsCs2Batch(List<Target> targets, int batchSize) {
+        if (targets == null || targets.isEmpty()) return List.of();
+        if (batchSize <= 0) batchSize = 5;
+
+        List<BuyTargetResult> all = new ArrayList<>();
+
+        for (int from = 0; from < targets.size(); from += batchSize) {
+            int to = Math.min(from + batchSize, targets.size());
+            List<Target> chunk = targets.subList(from, to);
+
+            List<BuyTargetResult> chunkRes = createBuyTargetsChunkWithRetry("CSGO", chunk, from);
+            all.addAll(chunkRes);
+        }
+
+        return all;
+    }
+
+    public static Order createBuyTargetCs2(String nameHash, double priceUsd) {
+        if (nameHash == null || nameHash.isBlank()) throw new IllegalArgumentException("nameHash is blank");
+        if (priceUsd <= 0) throw new IllegalArgumentException("priceUsd must be > 0");
+
+        return createBuyTarget("CSGO", nameHash, priceUsd, false);
+    }
+
+    private static Order createBuyTarget(String appEnum, String nameHash, double priceUsd, boolean alreadyRetried) {
+        if (accessToken == null || accessToken.isBlank()) authorize();
+
+        String nh = escapeGraphqlString(nameHash);
+        String value = java.math.BigDecimal.valueOf(priceUsd).stripTrailingZeros().toPlainString();
+
+        String mutation =
+                "mutation{ order_new(" +
+                        "app: " + appEnum + " " +
+                        "nameHash: \"" + nh + "\" " +
+                        "price: { value: \"" + value + "\" currency: USD } " +
+                        "quantity: 1" +
+                        "){ " +
+                        "id app nameHash quantity status createdAt expiredAt " +
+                        "price{ value currency } " +
+                        "} }";
+
+        var headers = new java.util.LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + accessToken);
+
+        GraphQlCallResult res = postGraphQL(mutation, headers, null);
+
+        // 1) HTTP-level
+        if (res.httpStatus == 401) {
+            if (!alreadyRetried) {
+                authorize();
+                return createBuyTarget(appEnum, nameHash, priceUsd, true);
+            }
+            throw new UnauthorizedException("Unauthorized (HTTP 401) even after re-auth. Body: " + res.rawBody);
+        }
+        if (res.httpStatus < 200 || res.httpStatus >= 300) {
+            throw new WhiteMarketException("HTTP " + res.httpStatus + " body=" + res.rawBody);
+        }
+
+        // 2) GraphQL-level UNAUTHENTICATED
+        if (isUnauthenticatedGraphQl(res.json)) {
+            if (!alreadyRetried) {
+                authorize();
+                return createBuyTarget(appEnum, nameHash, priceUsd, true);
+            }
+            throw new UnauthorizedException("Unauthorized (GraphQL UNAUTHENTICATED) even after re-auth. Response: " + safeJson(res.json));
+        }
+
+        // 3) any GraphQL errors
+        assertNoGraphQlErrors(res.json);
+
+        JsonNode o = res.json.path("data").path("order_new");
+        if (o.isMissingNode() || o.isNull()) {
+            throw new WhiteMarketException("order_new is missing in response. Full: " + safeJson(res.json));
+        }
+
+        JsonNode money = o.path("price");
+        return new Order(
+                textOrNull(o.get("id")),
+                textOrNull(o.get("app")),
+                textOrNull(o.get("nameHash")),
+                intOrNull(o.get("quantity")),
+                textOrNull(o.get("status")),
+                textOrNull(o.get("createdAt")),
+                textOrNull(o.get("expiredAt")),
+                money.isMissingNode() ? null : textOrNull(money.get("value")),
+                money.isMissingNode() ? null : textOrNull(money.get("currency"))
+        );
+    }
+
+    private static List<BuyTargetResult> createBuyTargetsChunkWithRetry(String appEnum, List<Target> chunk, int baseIndex) {
+        int attempts = 0;
+        long backoffMs = 900;
+
+        while (true) {
+            attempts++;
+
+            if (accessToken == null || accessToken.isBlank()) authorize();
+
+            GraphQlCallResult res = postGraphQL(buildBuyOrdersMutation(appEnum, chunk), authHeaders(), null);
+
+            // 401 / UNAUTHENTICATED -> reauth once
+            if (res.httpStatus == 401 || isUnauthenticatedGraphQl(res.json)) {
+                if (attempts >= 2) {
+                    // повертаємо помилку на кожен елемент чанку
+                    return buildSameErrorResults(chunk, baseIndex, "unauthorized", "401 / UNAUTHENTICATED");
+                }
+                authorize();
+                continue;
+            }
+
+            // парсимо норм
+            List<BuyTargetResult> parsed = parseBuyBatchResponse(res.json, chunk, baseIndex);
+
+            // якщо є too_many_requests хоча б в одному — ретраїмо chunk (обмежено)
+            boolean hasTooMany = parsed.stream().anyMatch(r ->
+                    r.errorCategory() != null && (
+                            r.errorCategory().equalsIgnoreCase("person.action_too_many_requests")
+                                    || r.errorCategory().toLowerCase().contains("too_many")
+                    )
+            );
+
+            if (hasTooMany && attempts < 4) {
+                sleepSilently(backoffMs);
+                backoffMs = Math.min(backoffMs * 2, 6000);
+                continue;
+            }
+
+            return parsed;
+        }
+    }
+
+    private static String buildBuyOrdersMutation(String appEnum, List<Target> chunk) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("mutation{\n");
+
+        for (int i = 0; i < chunk.size(); i++) {
+            Target t = chunk.get(i);
+            if (t == null) continue;
+
+            String nameHash = t.getName();
+            double priceUsd = t.getPrice();
+
+            // навіть якщо назва/ціна криві — краще пропустити, ніж зробити 400 на весь батч
+            if (nameHash == null || nameHash.isBlank() || priceUsd <= 0) continue;
+
+            String alias = "o" + i;
+            String nh = escapeGraphqlString(nameHash);
+            String value = java.math.BigDecimal.valueOf(priceUsd).stripTrailingZeros().toPlainString();
+
+            sb.append("  ")
+                    .append(alias)
+                    .append(": order_new(")                 // <-- ПРОБІЛ після ':'
+                    .append("app: ").append(appEnum).append(" ")
+                    .append("nameHash: \"").append(nh).append("\" ")
+                    .append("price: { value: \"").append(value).append("\" currency: USD } ")
+                    .append("quantity: 1")
+                    .append(") { ")
+                    .append("id status nameHash quantity ")
+                    .append("price { value currency } ")
+                    .append("icon iconLarge ")
+                    .append("}\n");                         // <-- ПЕРЕНОС після кожного блоку
+        }
+
+        sb.append("}");
+
+        return sb.toString();
+    }
+
+    private static List<BuyTargetResult> parseBuyBatchResponse(JsonNode root, List<Target> chunk, int baseIndex) {
+        // 1) Зберемо помилки по alias: "o0" -> (category, message)
+        Map<String, ErrorInfo> errorsByAlias = new HashMap<>();
+
+        JsonNode errors = root.get("errors");
+        if (errors != null && errors.isArray()) {
+            for (JsonNode err : errors) {
+                String msg = textOrNull(err.get("message"));
+
+                String cat = null;
+                JsonNode ext = err.get("extensions");
+                if (ext != null && ext.isObject()) {
+                    // у них буває category або code
+                    cat = textOrNull(ext.get("category"));
+                    if (cat == null) cat = textOrNull(ext.get("code"));
+                }
+
+                // path: ["o1", ...]
+                String alias = null;
+                JsonNode path = err.get("path");
+                if (path != null && path.isArray() && path.size() > 0) {
+                    alias = path.get(0).asText(null);
+                }
+
+                if (alias != null) {
+                    errorsByAlias.put(alias, new ErrorInfo(cat, msg));
+                } else {
+                    // якщо без path — загальна помилка
+                    errorsByAlias.put("_global", new ErrorInfo(cat, msg));
+                }
+            }
+        }
+
+        JsonNode data = root.get("data");
+
+        List<BuyTargetResult> out = new ArrayList<>(chunk.size());
+
+        for (int i = 0; i < chunk.size(); i++) {
+            Target t = chunk.get(i);
+            String nameHash = (t == null) ? null : t.getName();
+            double priceUsd = (t == null) ? 0d : t.getPrice();
+
+            String alias = "o" + i;
+
+            // Якщо твої дані невалідні — віддаємо помилку без звернення до API логіки
+            if (nameHash == null || nameHash.isBlank() || priceUsd <= 0) {
+                out.add(new BuyTargetResult(baseIndex + i, nameHash, priceUsd, null, null, null, null,
+                        "validation", "nameHash is blank OR price<=0"));
+                continue;
+            }
+
+            // Якщо є помилка на цей alias — повертаємо її
+            ErrorInfo ei = errorsByAlias.get(alias);
+            if (ei == null) ei = errorsByAlias.get("_global"); // fallback
+
+            JsonNode node = (data == null) ? null : data.get(alias);
+
+            if (node == null || node.isNull()) {
+                if (ei != null) {
+                    out.add(new BuyTargetResult(baseIndex + i, nameHash, priceUsd, null, null, null, null,
+                            ei.category(), ei.message()));
+                } else {
+                    out.add(new BuyTargetResult(baseIndex + i, nameHash, priceUsd, null, null, null, null,
+                            "unknown", "No data for alias " + alias));
+                }
+                continue;
+            }
+
+            // success parse
+            String id = textOrNull(node.get("id"));
+            String status = textOrNull(node.get("status"));
+            String icon = textOrNull(node.get("icon"));
+            String iconLarge = textOrNull(node.get("iconLarge"));
+
+            out.add(new BuyTargetResult(baseIndex + i, nameHash, priceUsd, id, status, icon, iconLarge, null, null));
+        }
+
+        return out;
+    }
+
+    private record ErrorInfo(String category, String message) {}
+
+
+    private static Map<String, String> authHeaders() {
+        var h = new LinkedHashMap<String, String>();
+        h.put("Authorization", "Bearer " + accessToken);
+        return h;
+    }
+
+    private static List<BuyTargetResult> buildSameErrorResults(List<Target> chunk, int baseIndex, String cat, String msg) {
+        List<BuyTargetResult> out = new ArrayList<>(chunk.size());
+        for (int i = 0; i < chunk.size(); i++) {
+            Target t = chunk.get(i);
+            String nh = t == null ? null : t.getName();
+            double p = t == null ? 0d : t.getPrice();
+            out.add(new BuyTargetResult(baseIndex + i, nh, p, null, null, null, null, cat, msg));
+        }
+        return out;
+    }
+
+
     public static InventoryPage getInventoryCs2(int first, String afterCursor) {
         // Без фільтрів — просто перша сторінка
         return getInventory("CSGO", null, null, null, first, afterCursor, false);
@@ -558,6 +1349,83 @@ public final class WhiteMarket {
      */
     public static InventoryPage getInventoryByName(String name, boolean nameStrict, int first, String afterCursor) {
         return getInventory("CSGO", name, nameStrict, null, first, afterCursor, false);
+    }
+
+    public static LowestSell getLowestSellPriceWithIdUsdCs2(String nameHash) {
+        return getLowestSellPriceWithIdUsd("CSGO", nameHash, false);
+    }
+
+    private static LowestSell getLowestSellPriceWithIdUsd(String appEnum, String nameHash, boolean alreadyRetried) {
+        if (accessToken == null || accessToken.isBlank()) authorize();
+
+        if (appEnum == null || appEnum.isBlank()) throw new IllegalArgumentException("appEnum is blank (e.g. CSGO)");
+        if (nameHash == null || nameHash.isBlank()) throw new IllegalArgumentException("nameHash is blank");
+
+        String nh = escapeGraphqlString(nameHash);
+
+        // беремо найнижчу ціну + пробуємо витягнути id лістингу/продукту
+        String query =
+                "query{ market_list(" +
+                        "search:{ " +
+                        "appId:" + appEnum + " " +
+                        "nameHash:\"" + nh + "\" " +
+                        "nameStrict:true " +
+                        "distinctValues:false " +
+                        "sort:{ field: PRICE type: ASC } " +
+                        "} " +
+                        "forwardPagination:{ first:1 }" +
+                        "){ edges{ node{ " +
+                        "id " +                              // часто це id лістингу
+                        "price{ value currency } " +
+                        "item{ product{ id } } " +           // інколи productId тут
+                        "} } } }";
+
+        var headers = new java.util.LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + accessToken);
+
+        GraphQlCallResult res = postGraphQL(query, headers, null);
+
+        // 401 -> refresh + retry once
+        if (res.httpStatus == 401 || isUnauthenticatedGraphQl(res.json)) {
+            if (!alreadyRetried) {
+                authorize();
+                return getLowestSellPriceWithIdUsd(appEnum, nameHash, true);
+            }
+            throw new UnauthorizedException("Unauthorized (market_list) even after re-auth. Response: " + safeJson(res.json));
+        }
+
+        if (res.httpStatus < 200 || res.httpStatus >= 300) {
+            throw new WhiteMarketException("HTTP " + res.httpStatus + " body=" + res.rawBody);
+        }
+
+        assertNoGraphQlErrors(res.json);
+
+        JsonNode edges = res.json.path("data").path("market_list").path("edges");
+        if (!edges.isArray() || edges.size() == 0) {
+            return new LowestSell(0.0d, null);
+        }
+
+        JsonNode node = edges.get(0).path("node");
+
+        // id лістингу або productId
+        String id = textOrNull(node.get("id"));
+        if (id == null) {
+            id = textOrNull(node.path("item").path("product").get("id"));
+        }
+
+        String value = textOrNull(node.path("price").get("value"));
+        if (value == null || value.isBlank()) {
+            return new LowestSell(0.0d, id);
+        }
+
+        double price;
+        try {
+            price = Double.parseDouble(value);
+        } catch (Exception e) {
+            price = 0.0d;
+        }
+
+        return new LowestSell(price, id);
     }
 
     public static double getLowestSellPriceUsdCs2(String nameHash) {
@@ -615,6 +1483,114 @@ public final class WhiteMarket {
         } catch (Exception e) {
             return 0.0d; // якщо раптом прийшло щось дивне
         }
+    }
+
+    public static LowestSellInfo getLowestSellInfoUsdCs2(String nameHash) {
+        return getLowestSellInfoUsd("CSGO", nameHash, false);
+    }
+
+    private static LowestSellInfo getLowestSellInfoUsd(String appEnum, String nameHash, boolean alreadyRetried) {
+        if (accessToken == null || accessToken.isBlank()) authorize();
+        if (appEnum == null || appEnum.isBlank()) throw new IllegalArgumentException("appEnum is blank (e.g. CSGO)");
+        if (nameHash == null || nameHash.isBlank()) throw new IllegalArgumentException("nameHash is blank");
+
+        String nh = escapeGraphqlString(nameHash);
+
+        // Варіант #1: node.item.description.iconLarge/icon
+        String query1 =
+                "query{ market_list(" +
+                        "search:{ " +
+                        "appId:" + appEnum + " " +
+                        "nameHash:\"" + nh + "\" " +
+                        "nameStrict:true " +
+                        "distinctValues:false " +
+                        "sort:{ field: PRICE type: ASC } " +
+                        "} " +
+                        "forwardPagination:{ first:1 }" +
+                        "){ edges{ node{ " +
+                        "price{ value currency } " +
+                        "item{ description{ icon iconLarge nameHash name } } " +
+                        "} } } }";
+
+        // Варіант #2: node.description.iconLarge/icon (якщо item нема в схемі)
+        String query2 =
+                "query{ market_list(" +
+                        "search:{ " +
+                        "appId:" + appEnum + " " +
+                        "nameHash:\"" + nh + "\" " +
+                        "nameStrict:true " +
+                        "distinctValues:false " +
+                        "sort:{ field: PRICE type: ASC } " +
+                        "} " +
+                        "forwardPagination:{ first:1 }" +
+                        "){ edges{ node{ " +
+                        "price{ value currency } " +
+                        "description{ icon iconLarge nameHash name } " +
+                        "} } } }";
+
+        var headers = new LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + accessToken);
+
+        GraphQlCallResult res;
+
+        // пробуємо query1, якщо схема не підтримує — пробуємо query2
+        try {
+            res = postGraphQL(query1, headers, null);
+            if (res.httpStatus == 401 || isUnauthenticatedGraphQl(res.json)) {
+                if (!alreadyRetried) {
+                    authorize();
+                    return getLowestSellInfoUsd(appEnum, nameHash, true);
+                }
+                throw new UnauthorizedException("Unauthorized (market_list) even after re-auth. Response: " + safeJson(res.json));
+            }
+            assertNoGraphQlErrors(res.json);
+        } catch (WhiteMarketException ex) {
+            // якщо GraphQL сказав, що поля нема — пробуємо альтернативу
+            String msg = ex.getMessage() == null ? "" : ex.getMessage();
+            if (msg.contains("Cannot query field") || msg.contains("GraphQL errors")) {
+                res = postGraphQL(query2, headers, null);
+
+                if (res.httpStatus == 401 || isUnauthenticatedGraphQl(res.json)) {
+                    if (!alreadyRetried) {
+                        authorize();
+                        return getLowestSellInfoUsd(appEnum, nameHash, true);
+                    }
+                    throw new UnauthorizedException("Unauthorized (market_list) even after re-auth. Response: " + safeJson(res.json));
+                }
+                assertNoGraphQlErrors(res.json);
+            } else {
+                throw ex;
+            }
+        }
+
+        JsonNode edges = res.json.path("data").path("market_list").path("edges");
+        if (!edges.isArray() || edges.size() == 0) {
+            return new LowestSellInfo(0.0d, null);
+        }
+
+        JsonNode node = edges.get(0).path("node");
+        JsonNode priceNode = node.path("price");
+        String value = textOrNull(priceNode.get("value"));
+
+        double price = 0.0d;
+        if (value != null && !value.isBlank()) {
+            try { price = Double.parseDouble(value); } catch (Exception ignore) {}
+        }
+
+        // Витягуємо картинку: спочатку item.description, потім description
+        String img = null;
+
+        JsonNode d1 = node.path("item").path("description");
+        img = textOrNull(d1.get("iconLarge"));
+        if (img == null) img = textOrNull(d1.get("icon"));
+
+        if (img == null) {
+            JsonNode d2 = node.path("description");
+            img = textOrNull(d2.get("iconLarge"));
+            if (img == null) img = textOrNull(d2.get("icon"));
+        }
+
+        return new LowestSellInfo(price, img);
     }
 
     public static InventoryPage getInventoryByNameHash(String nameHash, int first, String afterCursor) {
@@ -802,6 +1778,8 @@ public final class WhiteMarket {
                 return refreshInventoryFromSteam(true);
             }
             throw new UnauthorizedException("Unauthorized (inventory_update) even after re-auth. Response: " + safeJson(res.json));
+        }else if (res.httpStatus < 200 || res.httpStatus >= 300) {
+            throw new WhiteMarketException("HTTP " + res.httpStatus + " body=" + res.rawBody);
         }
 
         assertNoGraphQlErrors(res.json);
@@ -987,13 +1965,14 @@ public final class WhiteMarket {
         }
 
         HttpResponse<String> resp;
-
         try {
             resp = HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new WhiteMarketException("HTTP request failed", e);
         }
+        System.out.println(resp.body());
+        System.out.println();
 
         JsonNode json = tryParseJson(resp.body());
         return new GraphQlCallResult(resp.statusCode(), resp.body(), json);
@@ -1066,8 +2045,24 @@ public final class WhiteMarket {
         return Boolean.parseBoolean(s);
     }
 
-
-
+    public record BuyTargetResult(
+            int targetIndex,
+            String nameHash,
+            double priceUsd,
+            String orderId,
+            String status,
+            String icon,
+            String iconLarge,
+            String errorCategory,
+            String errorMessage
+    ) {}
+    private static void sleepSilently(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+    }
 
     public record PersonProfile(
             String id,
@@ -1083,6 +2078,12 @@ public final class WhiteMarket {
             Boolean isEmailConfirmed
     ) {}
 
+    private static boolean hasGraphQlErrors(JsonNode json) {
+        if (json == null) return false;
+
+        JsonNode errors = json.get("errors");
+        return errors != null && errors.isArray() && errors.size() > 0;
+    }
     private record GraphQlCallResult(int httpStatus, String rawBody, JsonNode json) {}
 
     public static class WhiteMarketException extends RuntimeException {
@@ -1093,4 +2094,74 @@ public final class WhiteMarket {
     public static class UnauthorizedException extends WhiteMarketException {
         public UnauthorizedException(String message) { super(message); }
     }
+
+    public record LowestSell(double priceUsd, String productId) {}
+
+    public record EditOfferResult(
+            int offerIndex,
+            String offerDbId,     // Offer.id (як строка) - зручно логувати
+            String productType,   // __typename
+            String productId,
+            String slug,          // може бути null (для history)
+            String priceValue,    // може бути null
+            String priceCurrency, // може бути null
+            String errorCategory,
+            String errorMessage
+    ) {}
+
+    public record SoldCheck(
+            boolean sold,
+            String dealId,
+            String soldAt,      // createdAt/archivedAt (як віддасть API)
+            String productId,
+            String assetId,
+            double priceUsd
+    ) {}
+
+    public record DealHistoryHit(
+            String dealHistoryId,
+            String status,
+            String productId,
+            String productSlug,
+            double priceUsd,
+            String createdAt
+    ) {}
+
+    public record DealHistoryPage(List<DealHistoryItem> items, PageInfo pageInfo, Integer totalCount) {}
+
+    public record DealHistoryItem(
+            String dealId,
+            String customId,
+            String createdAt, // якщо поле є в схемі (у прикладі фільтр сортується по CREATED_AT)
+            PersonPublic seller,
+            PersonPublic buyer,
+            ProductHistory product
+    ) {}
+
+    public record PersonPublic(
+            String id,
+            String steamId,
+            String steamName
+    ) {}
+
+    public record ProductHistory(
+            String id,          // productId, який тобі і треба
+            Integer appId,
+            Integer contextId,
+            String assetId,
+            Money price,
+            String status,
+            String archivedAt,
+            SteamItemDesc description
+    ) {}
+
+    public record SteamItemDesc(
+            String nameHash,
+            String name,
+            String icon,
+            String iconLarge
+    ) {}
+
+    public record Money(String value, String currency) {}
+
 }

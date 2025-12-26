@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static ua.sh1chiro.Bot.utils.WhiteMarket.getAllDealsHistoryCs2;
+
 /**
  * Created by Sh1chiro on 22.05.2025.
  * <p>
@@ -31,13 +33,6 @@ import java.util.List;
 public class test {
     @GetMapping("/test")
     public void test(){
-        WhiteMarket.setPartnerToken("8kcfheadktqofpsyrbaadjitnupzkcgxfyesmrmntect4l2nbg8t2bzm77fjmudd");
-        WhiteMarket.authorize();
-
-        var updated = WhiteMarket.editSellPriceUsd(
-                "1f0e1c49-e196-6d6a-8f03-eab3b11af6d8",
-                new BigDecimal("4.00")
-        );
-        System.out.println(updated);
+        System.out.println(getAllDealsHistoryCs2(null, 50, 10));
     }
 }

@@ -35,10 +35,12 @@ public class Target {
     private double maxTarget;
     private double minWithoutLock;
     private double minWithLock;
+    private String orderId;
     @Column(columnDefinition = "TEXT")
     private String imageLink;
     private LocalDateTime dateOfCreated;
     private LocalDateTime lastUpdateTime;
+    private LocalDateTime lastTryUpdateTime;
 
     @PrePersist
     private void init(){

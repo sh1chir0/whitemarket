@@ -25,8 +25,6 @@ import java.util.List;
 public class InventoryAPI{
     @RequestMapping("/get-inventories")
     public List<InventoryDMarketDTO> getMyInventories(){
-        WhiteMarket.setPartnerToken("8kcfheadktqofpsyrbaadjitnupzkcgxfyesmrmntect4l2nbg8t2bzm77fjmudd");
-        WhiteMarket.authorize();
         List<InventoryDMarketDTO> inventoryDMarketDTOS = WhiteMarket.getAllTradeableInventoryCs2(100);
         for (InventoryDMarketDTO inventoryDMarketDTO : inventoryDMarketDTOS){
             inventoryDMarketDTO.setMinWM(WhiteMarket.getLowestSellPriceUsdCs2(inventoryDMarketDTO.getName()));

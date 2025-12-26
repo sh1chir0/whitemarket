@@ -136,10 +136,8 @@ public class ConfigAPI {
     @PostMapping("/change-keys")
     public ResponseEntity<String> changeKeys(@RequestBody KeysDTO keysDTO) {
         String publicKey = keysDTO.getPublicKey();
-        String secretKey = keysDTO.getSecretKey();
 
         BotConfig.config.setPublicAPIKey(publicKey);
-        BotConfig.config.setSecretAPIKey(secretKey);
         BotConfig.saveConfig();
 
         return ResponseEntity.ok("Keys updated");

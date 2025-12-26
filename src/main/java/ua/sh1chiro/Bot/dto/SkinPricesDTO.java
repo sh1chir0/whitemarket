@@ -32,7 +32,9 @@ public class SkinPricesDTO {
     private String ownerWith;
     private String ownerWithout;
     private String imageLink;
+    private double minWM;
     private List<TargetPriceDTO> targets = new ArrayList<>();
+
     @Override
     public String toString() {
         return "SkinPricesDTO{" +
@@ -43,6 +45,9 @@ public class SkinPricesDTO {
                 ", maxTarget=" + maxTarget +
                 ", ownerWith='" + ownerWith + '\'' +
                 ", ownerWithout='" + ownerWithout + '\'' +
+                ", imageLink='" + imageLink + '\'' +
+                ", minWM=" + minWM +
+                ", targets=" + targets +
                 '}';
     }
 }

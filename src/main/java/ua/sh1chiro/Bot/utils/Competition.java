@@ -2,7 +2,9 @@ package ua.sh1chiro.Bot.utils;
 
 import org.springframework.stereotype.Component;
 import ua.sh1chiro.Bot.config.BotConfig;
+import ua.sh1chiro.Bot.dto.EditBuyOrderResult;
 import ua.sh1chiro.Bot.dto.SkinPricesDTO;
+import ua.sh1chiro.Bot.dto.TargetPriceDTO;
 import ua.sh1chiro.Bot.models.Offer;
 import ua.sh1chiro.Bot.models.Target;
 import ua.sh1chiro.Bot.services.OfferService;
@@ -10,7 +12,9 @@ import ua.sh1chiro.Bot.services.TargetService;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Created by Sh1chiro on 12.05.2025.
@@ -39,54 +43,61 @@ public class Competition {
         int delay = BotConfig.config.getOfferDelay() * 60 * 1000;
         while(BotConfig.config.isCompetitionOffers()) {
             try {
-                DMarket.updateOffers();
-                try {
-                    Thread.sleep(2000);
-                    DMarket.updateOffersId();
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-
+                // Checking sold
                 List<Offer> offers = offerService.getAll();
 
-                offers = DMarket.updateOfferTradable(offers);
+//                List<Offer> offersForDeleting = new ArrayList<>();
 
+//                for (Offer offer : offers) {
+//                    Optional<WhiteMarket.DealHistoryHit> hit = WhiteMarket.findDealInHistoryByProductId(offer.getProductId(), 200);
+//                    if (hit.isPresent()) {
+//                        offersForDeleting.add(offer);
+//                    }
+//                }
+//                for (Offer offer : offersForDeleting) {
+//                    offerService.delete(offer);
+//                }
+//
+//                offers.removeAll(offersForDeleting);
+
+                List<Offer> offersToUpdate = new ArrayList<>();
+                System.out.println("Відбувається перевірка офферів на оновлення ціни: ");
                 for (Offer offer : offers) {
-                    SkinPricesDTO skinPricesDTO = DMarket.getOffersBySkin(offer.getName());
-                    offer.setMinWithoutLock(skinPricesDTO.getMinWithoutLock());
-                    offer.setMinWithLock(skinPricesDTO.getMinWithLock());
+                    WhiteMarket.LowestSell minWM = WhiteMarket.getLowestSellPriceWithIdUsdCs2(offer.getName());
+                    System.out.println("Назва: " + offer.getName());
+                    System.out.println("My product id: " + offer.getProductId());
+                    System.out.println("MinWM price: " + minWM.priceUsd() + "$");
+                    System.out.println("MinWM id: " + minWM.productId());
 
-                    SkinPricesDTO skinPricesWithFrames = DMarket.getOffersBySkinWithFrames(offer.getName(), offer.getMinPrice(), offer.getMaxPrice());
-                    if (offer.isTradable()) {
-                        if (skinPricesWithFrames.getMinWithoutLock() != 0)
-                            offer.setPrice(skinPricesWithFrames.getMinWithoutLock() - 0.01);
-                        else
-                            offer.setPrice(offer.getMaxPrice());
-                    }
-                    else {
-                        if (skinPricesWithFrames.getMinWithLock() != 0)
-                            offer.setPrice(skinPricesWithFrames.getMinWithLock() - 0.01);
-                        else
-                            offer.setPrice(offer.getMaxPrice());
-                    }
+                    if(minWM.productId().equals(offer.getProductId()))
+                        continue;
 
-//                if (offer.isTradable() && (offer.getMinWithoutLock() - 0.01 >= offer.getMinPrice()) && (offer.getMinWithoutLock() - 0.01 <= offer.getMaxPrice()))
-//                    offer.setPrice(offer.getMinWithoutLock() - 0.01);
-//                else if ((offer.getMinWithLock() - 0.01 >= offer.getMinPrice()) && (offer.getMinWithLock() - 0.01 <= offer.getMaxPrice()))
-//                    offer.setPrice(offer.getMinWithLock() - 0.01);
+                    if(minWM.priceUsd() - 0.01 >= offer.getMinPrice() && minWM.priceUsd() - 0.01 <= offer.getMaxPrice()) {
+                        offer.setPrice(minWM.priceUsd() - 0.01);
+                        offer.setTryUpdate(LocalDateTime.now());
 
-                    offer.setTryUpdate(LocalDateTime.now());
-                    offerService.save(offer);
-
-                    try {
-                        Thread.sleep(1000);
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
+                        offersToUpdate.add(offer);
+                        try {
+                            Thread.sleep(1000);
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
                     }
                 }
 
 
-                DMarket.updateOfferPrice(offers);
+                List<WhiteMarket.EditOfferResult> editOffers = WhiteMarket.editSellOffersPricesUsdCs2(offersToUpdate);
+                for (WhiteMarket.EditOfferResult editOffer : editOffers) {
+                    if(editOffer.errorMessage() == null){
+                        for (Offer offer : offersToUpdate) {
+                            if(offer.getProductId().equals(editOffer.productId())){
+                                offer.setLastUpdate(LocalDateTime.now());
+                                offerService.save(offer);
+                            }
+                        }
+                    }
+                }
+
                 try {
                     Thread.sleep(delay);
                 } catch (Exception ex) {
@@ -102,6 +113,11 @@ public class Competition {
                     }
                 }
             }catch (Exception ex){
+                try {
+                    Thread.sleep(delay);
+                }catch (Exception exi) {
+                    ex.printStackTrace();
+                }
                 ex.printStackTrace();
             }
         }
@@ -115,54 +131,45 @@ public class Competition {
         int delay = BotConfig.config.getTargetDelay()  * 60 * 1000;
         while (BotConfig.config.isCompetitionTargets()) {
             try {
-                DMarket.updateTargetHistory();
-
-                try {
-                    Thread.sleep(2000);
-                    DMarket.updateTargetsId();
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-
                 List<Target> targets = targetService.getAllTargets();
 
                 for (Target target : targets) {
                     LocalDateTime time = LocalDateTime.now();
+                    target.setLastTryUpdateTime(time);
+                    targetService.save(target);
+
                     if (target.getLastUpdateTime().isAfter(time.minusMinutes(15))) {
                         continue;
                     }
 
-                    SkinPricesDTO skinPricesDTO = DMarket.getOffersBySkin(target.getName());
-                    target.setMinWithLock(skinPricesDTO.getMinWithLock());
-                    target.setMinWithoutLock(skinPricesDTO.getMinWithoutLock());
-
                     try {
-                        double maxTarget = DMarket.getMaxTargetWithoutAttributes(target.getName());
+                        List<TargetPriceDTO> prices = WhiteMarket.getPublicBuyTargetsCs2(target.getName(), 2);
+                        if(prices.getFirst().getOrderId().equals(target.getOrderId()))
+                            continue;
+
+                        double maxTarget = prices.getFirst().getPrice();
                         target.setMaxTarget(maxTarget);
 
-                        List<Double> topPrices = DMarket.getTop2MaxTargetsWithoutAttributesWithFrames(target.getName(), target.getMinPrice(), target.getMaxPrice());
-                        if (!topPrices.isEmpty())
-                            if (target.getPrice() == topPrices.getFirst()) {
-                                if (topPrices.size() == 2)
-                                    target.setPrice(topPrices.getLast() + 0.01);
-                            }
-                            else
-                                target.setPrice(topPrices.getFirst() + 0.01);
-                        else
-                            target.setPrice(target.getMinPrice());
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
-                    targetService.save(target);
+                        if(maxTarget + 0.1 >= target.getMinPrice() && maxTarget + 0.1 <= target.getMaxPrice()){
+                            target.setPrice(maxTarget + 0.1);
+                        }else {
+                            System.out.println("skip");
+                            continue;
+                        }
 
-                    try {
                         Thread.sleep(1000);
+
+                        EditBuyOrderResult res =
+                                WhiteMarket.editBuyOrderPriceUsdCs2(target.getOrderId(),maxTarget + 0.1);
+                        if(res.getErrorMessage() == null) {
+                            target.setLastUpdateTime(LocalDateTime.now());
+                            targetService.save(target);
+                        }
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     }
                 }
 
-                DMarket.updateTargets(targets);
 
                 try {
                     Thread.sleep(delay);
@@ -179,6 +186,14 @@ public class Competition {
                     }
                 }
             }catch (Exception ex){
+                try {
+                    if (!BotConfig.config.isCompetitionTargets())
+                        break;
+
+                    Thread.sleep(delay);
+                } catch (Exception exs) {
+                    ex.printStackTrace();
+                }
                 ex.printStackTrace();
             }
         }
