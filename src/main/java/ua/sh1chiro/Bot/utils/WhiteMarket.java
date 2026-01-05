@@ -41,7 +41,7 @@ public final class WhiteMarket {
             .connectTimeout(Duration.ofSeconds(20))
             .build();
 
-    private static final String partnerToken = BotConfig.config.getPublicAPIKey();
+    private static final String partnerToken = EncryptionUtils.decrypt(BotConfig.config.getPublicAPIKey());
     @Getter
     private static volatile String accessToken;
     private static volatile Instant accessTokenIssuedAt;
@@ -86,6 +86,115 @@ public final class WhiteMarket {
      */
     public static PersonProfile getMe() {
         return getMe(false);
+    }
+
+    public static double getLowestSellPriceUsdCs2InRange(String nameHash, double minUsd, double maxUsd) {
+        return getLowestSellPriceUsdInRange("CSGO", nameHash, minUsd, maxUsd, "USD", false);
+    }
+
+    private static double getLowestSellPriceUsdInRange(
+            String appEnum,
+            String nameHash,
+            double minUsd,
+            double maxUsd,
+            String currencyEnum,
+            boolean alreadyRetried
+    ) {
+        LowestSell ls = getLowestSellPriceWithIdUsdInRange(appEnum, nameHash, minUsd, maxUsd, currencyEnum, alreadyRetried);
+        return ls == null ? 0.0d : ls.priceUsd();
+    }
+
+    public static LowestSell getLowestSellPriceWithIdUsdCs2InRange(String nameHash, double minUsd, double maxUsd) {
+        return getLowestSellPriceWithIdUsdInRange("CSGO", nameHash, minUsd, maxUsd, "USD", false);
+    }
+
+    private static LowestSell getLowestSellPriceWithIdUsdInRange(
+            String appEnum,
+            String nameHash,
+            double minUsd,
+            double maxUsd,
+            String currencyEnum,
+            boolean alreadyRetried
+    ) {
+        if (accessToken == null || accessToken.isBlank()) authorize();
+
+        if (appEnum == null || appEnum.isBlank()) throw new IllegalArgumentException("appEnum is blank (e.g. CSGO)");
+        if (nameHash == null || nameHash.isBlank()) throw new IllegalArgumentException("nameHash is blank");
+
+        if (minUsd < 0) minUsd = 0;
+        if (maxUsd > 0 && maxUsd < minUsd) throw new IllegalArgumentException("maxUsd must be >= minUsd (or 0 to disable upper bound)");
+
+        String nh = escapeGraphqlString(nameHash);
+
+        String priceFromPart = "priceFrom:" + moneyInput(toMoneyValue(minUsd), currencyEnum) + " ";
+        String priceToPart = (maxUsd > 0)
+                ? "priceTo:" + moneyInput(toMoneyValue(maxUsd), currencyEnum) + " "
+                : ""; // 0 => не обмежуємо верх
+
+        String query =
+                "query{ market_list(" +
+                        "search:{ " +
+                        "appId:" + appEnum + " " +
+                        "nameHash:\"" + nh + "\" " +
+                        "nameStrict:true " +
+                        "distinctValues:false " +
+                        priceFromPart +
+                        priceToPart +
+                        "sort:{ field: PRICE type: ASC } " +
+                        "} " +
+                        "forwardPagination:{ first:1 }" +
+                        "){ edges{ node{ " +
+                        "id " +
+                        "price{ value currency } " +
+                        "item{ product{ id } } " +
+                        "} } } }";
+
+        var headers = new java.util.LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + accessToken);
+
+        GraphQlCallResult res = postGraphQL(query, headers, null);
+
+        // 401 -> refresh + retry once
+        if (res.httpStatus == 401 || isUnauthenticatedGraphQl(res.json)) {
+            if (!alreadyRetried) {
+                authorize();
+                return getLowestSellPriceWithIdUsdInRange(appEnum, nameHash, minUsd, maxUsd, currencyEnum, true);
+            }
+            throw new UnauthorizedException("Unauthorized (market_list) even after re-auth. Response: " + safeJson(res.json));
+        }
+
+        if (res.httpStatus < 200 || res.httpStatus >= 300) {
+            throw new WhiteMarketException("HTTP " + res.httpStatus + " body=" + res.rawBody);
+        }
+
+        assertNoGraphQlErrors(res.json);
+
+        JsonNode edges = res.json.path("data").path("market_list").path("edges");
+        if (!edges.isArray() || edges.size() == 0) {
+            return new LowestSell(0.0d, null);
+        }
+
+        JsonNode node = edges.get(0).path("node");
+
+        // id лістингу або productId
+        String id = textOrNull(node.get("id"));
+        if (id == null) {
+            id = textOrNull(node.path("item").path("product").get("id"));
+        }
+
+        String value = textOrNull(node.path("price").get("value"));
+        if (value == null || value.isBlank()) {
+            return new LowestSell(0.0d, id);
+        }
+
+        double price;
+        try {
+            price = Double.parseDouble(value);
+        } catch (Exception e) {
+            price = 0.0d;
+        }
+
+        return new LowestSell(price, id);
     }
 
     public static EditBuyOrderResult editBuyOrderPriceUsdCs2(
@@ -966,6 +1075,128 @@ public final class WhiteMarket {
             );
         }
     }
+
+    public static List<TargetPriceDTO> getPublicBuyTargetsCs2InRange(
+            String nameHash,
+            int limit,
+            double minPrice,
+            double maxPrice
+    ) {
+        List<TargetPriceDTO> targets = getPublicBuyTargetsInRange(
+                "CSGO",
+                nameHash,
+                limit,
+                minPrice,
+                maxPrice,
+                false
+        );
+
+        List<TargetPriceDTO> targetsForReturn = new ArrayList<>();
+        for (TargetPriceDTO target : targets) {
+            if(nameHash.contains("StatTrak") && target.getName().contains("StatTrak"))
+                targetsForReturn.add(target);
+            else if(!nameHash.contains("StatTrak") && !target.getName().contains("StatTrak"))
+                targetsForReturn.add(target);
+        }
+
+        return targetsForReturn;
+    }
+
+    private static List<TargetPriceDTO> getPublicBuyTargetsInRange(
+            String appEnum,
+            String nameHash,
+            int limit,
+            double minPrice,
+            double maxPrice,
+            boolean alreadyRetried
+    ) {
+        if (accessToken == null || accessToken.isBlank()) authorize();
+
+        if (nameHash == null || nameHash.isBlank())
+            throw new IllegalArgumentException("nameHash is blank");
+
+        if (limit <= 0) limit = 50;
+
+        String nh = escapeGraphqlString(nameHash);
+
+        StringBuilder search = new StringBuilder();
+        search.append("appId:").append(appEnum).append(" ");
+        search.append("nameHash:\"").append(nh).append("\" ");
+        search.append("nameStrict:true ");
+
+        if (minPrice > 0) {
+            search.append("priceFrom:{ value:\"")
+                    .append(minPrice)
+                    .append("\" currency:USD } ");
+        }
+
+        if (maxPrice > 0) {
+            search.append("priceTo:{ value:\"")
+                    .append(maxPrice)
+                    .append("\" currency:USD } ");
+        }
+
+        String query =
+                "query{ order_list(" +
+                        "search:{ " + search + " } " +
+                        "forwardPagination:{ first:" + limit + " }" +
+                        "){ edges{ node{ " +
+                        "id " +
+                        "nameHash " +
+                        "quantity " +
+                        "price{ value currency }" +
+                        "} } } }";
+
+
+        var headers = new LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + accessToken);
+
+        GraphQlCallResult res = postGraphQL(query, headers, null);
+
+        if (res.httpStatus == 401 || isUnauthenticatedGraphQl(res.json)) {
+            if (!alreadyRetried) {
+                authorize();
+                return getPublicBuyTargetsInRange(
+                        appEnum, nameHash, limit, minPrice, maxPrice, true
+                );
+            }
+            throw new UnauthorizedException("Unauthorized (order_list) even after re-auth");
+        }
+
+        if (res.httpStatus < 200 || res.httpStatus >= 300) {
+            throw new WhiteMarketException("HTTP " + res.httpStatus + " body=" + res.rawBody);
+        }
+
+        assertNoGraphQlErrors(res.json);
+
+        List<TargetPriceDTO> out = new ArrayList<>();
+        JsonNode edges = res.json.path("data").path("order_list").path("edges");
+
+        if (edges.isArray()) {
+            for (JsonNode e : edges) {
+                JsonNode n = e.path("node");
+
+                String id = textOrNull(n.get("id"));
+                String name = textOrNull(n.get("nameHash"));
+                double price = safeParseDouble(n.path("price").path("value").asText());
+                int qty = n.get("quantity").asInt(0);
+
+                if (price <= 0 || qty <= 0) continue;
+
+                out.add(new TargetPriceDTO(
+                        id,
+                        price,
+                        qty,
+                        name
+                        ));
+            }
+        }
+
+        out.sort(Comparator.comparingDouble(TargetPriceDTO::getPrice).reversed());
+        return out;
+    }
+
+
 
     public static List<PublicOrder> getPublicBuyOrdersCs2ByNameHash(String nameHash, int limit) {
         return getPublicBuyOrdersByNameHash("CSGO", nameHash, limit, false);
@@ -2093,6 +2324,16 @@ public final class WhiteMarket {
 
     public static class UnauthorizedException extends WhiteMarketException {
         public UnauthorizedException(String message) { super(message); }
+    }
+
+    private static String moneyInput(String value, String currencyEnum) {
+        // value має бути строкою числа: "3.5"
+        return "{ value:\"" + escapeGraphqlString(value) + "\" currency:" + currencyEnum + " }";
+    }
+
+    private static String toMoneyValue(double d) {
+        // щоб не було scientific notation
+        return java.math.BigDecimal.valueOf(d).stripTrailingZeros().toPlainString();
     }
 
     public record LowestSell(double priceUsd, String productId) {}

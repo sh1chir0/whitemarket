@@ -63,16 +63,25 @@ public class Competition {
                 List<Offer> offersToUpdate = new ArrayList<>();
                 System.out.println("Відбувається перевірка офферів на оновлення ціни: ");
                 for (Offer offer : offers) {
-                    WhiteMarket.LowestSell minWM = WhiteMarket.getLowestSellPriceWithIdUsdCs2(offer.getName());
+//                    WhiteMarket.LowestSell minWM = WhiteMarket.getLowestSellPriceWithIdUsdCs2(offer.getName());
+                    WhiteMarket.LowestSell minWM = WhiteMarket.getLowestSellPriceWithIdUsdCs2InRange(
+                            offer.getName(),
+                            offer.getMinPrice(),
+                            offer.getMaxPrice()
+                    );
+
                     System.out.println("Назва: " + offer.getName());
                     System.out.println("My product id: " + offer.getProductId());
                     System.out.println("MinWM price: " + minWM.priceUsd() + "$");
                     System.out.println("MinWM id: " + minWM.productId());
 
-                    if(minWM.productId().equals(offer.getProductId()))
+                    if(minWM.productId().equals(offer.getProductId())) {
+                        System.out.println("Це мій скін, скіпаю.");
                         continue;
+                    }
 
                     if(minWM.priceUsd() - 0.01 >= offer.getMinPrice() && minWM.priceUsd() - 0.01 <= offer.getMaxPrice()) {
+                        System.out.println("Входимо в діапазон, додаю оффер до апдейту");
                         offer.setPrice(minWM.priceUsd() - 0.01);
                         offer.setTryUpdate(LocalDateTime.now());
 
@@ -82,6 +91,8 @@ public class Competition {
                         } catch (Exception ex) {
                             ex.printStackTrace();
                         }
+                    }else{
+                        System.out.println("Не входимо в діапазон");
                     }
                 }
 
@@ -91,6 +102,7 @@ public class Competition {
                     if(editOffer.errorMessage() == null){
                         for (Offer offer : offersToUpdate) {
                             if(offer.getProductId().equals(editOffer.productId())){
+                                System.out.println("Оновили.");
                                 offer.setLastUpdate(LocalDateTime.now());
                                 offerService.save(offer);
                             }
@@ -99,7 +111,7 @@ public class Competition {
                 }
 
                 try {
-                    Thread.sleep(delay);
+//                    Thread.sleep(delay);
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 } finally {
@@ -138,20 +150,25 @@ public class Competition {
                     target.setLastTryUpdateTime(time);
                     targetService.save(target);
 
-                    if (target.getLastUpdateTime().isAfter(time.minusMinutes(15))) {
+                    if (target.getLastUpdateTime().isAfter(time.minusMinutes(1))) {
                         continue;
                     }
 
                     try {
-                        List<TargetPriceDTO> prices = WhiteMarket.getPublicBuyTargetsCs2(target.getName(), 2);
-                        if(prices.getFirst().getOrderId().equals(target.getOrderId()))
+
+                        List<TargetPriceDTO> prices = WhiteMarket.getPublicBuyTargetsCs2InRange(target.getName(), 3, target.getMinPrice(), target.getMaxPrice());
+                        if(prices.getFirst().getOrderId().equals(target.getOrderId())){
+                            prices.remove(prices.getFirst());
+                        }
+
+                        if(prices.isEmpty())
                             continue;
 
                         double maxTarget = prices.getFirst().getPrice();
                         target.setMaxTarget(maxTarget);
 
-                        if(maxTarget + 0.1 >= target.getMinPrice() && maxTarget + 0.1 <= target.getMaxPrice()){
-                            target.setPrice(maxTarget + 0.1);
+                        if(maxTarget + 0.01 >= target.getMinPrice() && maxTarget + 0.01 <= target.getMaxPrice()){
+                            target.setPrice(maxTarget + 0.01);
                         }else {
                             System.out.println("skip");
                             continue;
@@ -160,7 +177,7 @@ public class Competition {
                         Thread.sleep(1000);
 
                         EditBuyOrderResult res =
-                                WhiteMarket.editBuyOrderPriceUsdCs2(target.getOrderId(),maxTarget + 0.1);
+                                WhiteMarket.editBuyOrderPriceUsdCs2(target.getOrderId(),maxTarget + 0.01);
                         if(res.getErrorMessage() == null) {
                             target.setLastUpdateTime(LocalDateTime.now());
                             targetService.save(target);
@@ -171,8 +188,8 @@ public class Competition {
                 }
 
 
-                try {
-                    Thread.sleep(delay);
+                try{
+//                    Thread.sleep(delay);
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 } finally {

@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.telegram.telegrambots.meta.api.objects.User;
 import ua.sh1chiro.Bot.config.BotConfig;
 import ua.sh1chiro.Bot.dto.SkinPricesDTO;
+import ua.sh1chiro.Bot.dto.TargetPriceDTO;
 import ua.sh1chiro.Bot.utils.Competition;
 import ua.sh1chiro.Bot.utils.DMarket;
 import ua.sh1chiro.Bot.utils.WhiteMarket;
@@ -33,6 +34,14 @@ import static ua.sh1chiro.Bot.utils.WhiteMarket.getAllDealsHistoryCs2;
 public class test {
     @GetMapping("/test")
     public void test(){
-        System.out.println(getAllDealsHistoryCs2(null, 50, 10));
+        List<TargetPriceDTO> targets =
+                WhiteMarket.getPublicBuyTargetsCs2InRange(
+                        "StatTrak™ AWP | Neo-Noir (Field-Tested)",
+                        50,
+                        40,
+                        60
+                );
+
+        targets.forEach(System.out::println);
     }
 }

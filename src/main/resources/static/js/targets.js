@@ -61,8 +61,14 @@ export function targets(link) {
             mainBlock.appendChild(table)
 
             data.forEach(item => {
+                const imgSrc = (item.imageLink && item.imageLink.trim())
+                    ? item.imageLink
+                    : '/img/where_skin.png';
+
                 table.insertAdjacentHTML('beforeend', `
-                        <div class="cell"><img src="${item.imageLink}" alt="lock" class="skin-img" data-asset="${item.assetId}" data-type="image"></div>
+                        <div class="cell">
+                            <img src="${imgSrc}" alt="lock" class="skin-img" data-asset="${item.assetId}" data-type="image">
+                        </div>                       
                         <div class="cell"><input style="text-align: left;" type="text" value="${item.name}" readonly data-asset="${item.id}" data-type="name"></div>
                         <div class="cell"><input type="number" value="${item.minPrice}" data-asset="${item.id}" data-type="minPrice"></div>
                         <div class="cell"><input type="number" value="${item.maxPrice}" data-asset="${item.id}" data-type="maxPrice"></div>

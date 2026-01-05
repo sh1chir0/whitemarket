@@ -61,7 +61,7 @@ public class TargetAPI {
 
             skinPricesDTO.setMinWM(lowestSellInfo.priceUsd());
 
-            List<TargetPriceDTO> prices = WhiteMarket.getPublicBuyTargetsCs2(name, 10);
+            List<TargetPriceDTO> prices = WhiteMarket.getPublicBuyTargetsCs2InRange(name, 10, 0, 100000);
             if(!prices.isEmpty()) {
                 skinPricesDTO.setMaxTarget(prices.getFirst().getPrice());
                 skinPricesDTO.setTargets(prices);
@@ -112,7 +112,7 @@ public class TargetAPI {
 
         List<TargetWithSkinsDTO> result = targets.stream()
                 .map(t -> {
-                    List<TargetPriceDTO> skins = WhiteMarket.getPublicBuyTargetsCs2(t.getName(), 10);
+                    List<TargetPriceDTO> skins = WhiteMarket.getPublicBuyTargetsCs2InRange(t.getName(), 10, 0 , 100000);
 
                     String myOrderId = t.getOrderId();
 

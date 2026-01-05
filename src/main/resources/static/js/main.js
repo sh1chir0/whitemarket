@@ -1,6 +1,6 @@
 import { inventories } from './inventory.js?v=1.0.3'
 import { offers } from './offers.js?v=1.0.4'
-import { targets } from './targets.js?v=1.0.6'
+import { targets } from './targets.js?v=1.0.8'
 // import { history } from './history.js?v=1.0.3'
 import { createTargets } from './createTargets.js?v=1.0.6'
 import { settings } from './settings.js?v=1.0.3'

@@ -7,6 +7,7 @@ import ua.sh1chiro.Bot.config.BotConfig;
 import ua.sh1chiro.Bot.dto.DelaysDTO;
 import ua.sh1chiro.Bot.dto.KeysDTO;
 import ua.sh1chiro.Bot.utils.Competition;
+import ua.sh1chiro.Bot.utils.EncryptionUtils;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -136,8 +137,10 @@ public class ConfigAPI {
     @PostMapping("/change-keys")
     public ResponseEntity<String> changeKeys(@RequestBody KeysDTO keysDTO) {
         String publicKey = keysDTO.getPublicKey();
+        String secretKey = keysDTO.getSecretKey();
 
-        BotConfig.config.setPublicAPIKey(publicKey);
+        BotConfig.config.setPublicAPIKey(EncryptionUtils.encrypt(publicKey));
+        BotConfig.config.setSecretAPIKey(EncryptionUtils.encrypt(secretKey));
         BotConfig.saveConfig();
 
         return ResponseEntity.ok("Keys updated");
@@ -157,13 +160,14 @@ public class ConfigAPI {
 
     @PostMapping("/login")
     public boolean login(@RequestBody String password){
-        return BotConfig.config.getPassword().equals(password);
+        return BotConfig.config.getPassword().equals(EncryptionUtils.encrypt(password));
     }
 
     @PostMapping("/change-password")
     public ResponseEntity<String> changePassword(@RequestBody String password){
-        BotConfig.config.setPassword(password);
+        BotConfig.config.setPassword(EncryptionUtils.encrypt(password));
         BotConfig.saveConfig();
 
-        return ResponseEntity.ok("Password updated");    }
+        return ResponseEntity.ok("Password updated");
+    }
 }
